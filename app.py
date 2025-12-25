@@ -24,7 +24,7 @@ def load_db():
         try:
             with open(DB_FILE, "r") as f:
                 data = json.load(f)
-                if isinstance(data, dict) and "users" in data and "history" in data:
+                if isinstance(data, dict) and "users" in data:
                     return data
         except: pass
     return {"users": {}, "history": {}}
@@ -46,7 +46,7 @@ if "user" not in st.session_state:
         if st.button("LOG IN"):
             if u in st.session_state.db["users"] and st.session_state.db["users"][u] == p:
                 st.session_state.user = u
-                st.session_state.messages = [] # Initialize messages on login
+                st.session_state.messages = []
                 st.rerun()
     with t2:
         nu = st.text_input("New User")
@@ -56,7 +56,7 @@ if "user" not in st.session_state:
                 st.session_state.db["users"][nu] = np
                 st.session_state.db["history"][nu] = []
                 save_db(st.session_state.db)
-                st.success("Account Created! Use Login tab.")
+                st.success("Account Created!")
     st.stop()
 
 # --- 4. SIDEBAR ---
@@ -64,36 +64,33 @@ client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 with st.sidebar:
     st.markdown(f"### 🟠 User: {st.session_state.user}")
-    if st.button("➕ NEW CHAT", use_container_width=True):
+    if st.button("➕ NEW CHAT"):
         st.session_state.messages = []
         st.session_state.active_idx = None
         st.rerun()
     
-    st.markdown("---")
     img_file = st.file_uploader("🖼️ Analyze Image", type=['png', 'jpg', 'jpeg'])
     
     st.markdown("---")
     st.write("📂 **YOUR CHATS**")
     
-    # SAFE HISTORY LOOP
-    user_history = st.session_state.db["history"].get(st.session_state.user, [])
+    # DEFENSIVE HISTORY LOADING
+    user_history = st.session_state.db.get("history", {}).get(st.session_state.user, [])
     for i, chat in enumerate(user_history):
-        try:
-            chat_name = chat.get('name', f"Chat {i}")
-            # Dynamic key prevents DuplicateWidgetID error
-            if st.button(f"🗨️ {chat_name}", key=f"hist_{st.session_state.user}_{i}"):
-                st.session_state.messages = chat.get('msgs', [])
-                st.session_state.active_idx = i
-                st.rerun()
-        except Exception:
-            continue
+        # FIX: Check if keys exist before using them to prevent KeyError
+        name = chat.get("name", f"Chat {i}")
+        msgs = chat.get("msgs", [])
+        
+        if st.button(f"🗨️ {name}", key=f"sidebar_btn_{i}_{len(msgs)}"):
+            st.session_state.messages = msgs
+            st.session_state.active_idx = i
+            st.rerun()
 
 # --- 5. CHAT ENGINE ---
 st.markdown("<h1 class='main-title'>GOBIDAS BETA</h1>", unsafe_allow_html=True)
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Show conversation
 for m in st.session_state.messages:
     with st.chat_message(m["role"]): st.markdown(m["content"])
 
@@ -112,7 +109,7 @@ if prompt := st.chat_input("Message Gobidas..."):
                 img.save(buf, format="JPEG")
                 b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
                 
-                # USING 90B VISION (11B is decommissioned)
+                # Using the active 90B model
                 res = client.chat.completions.create(
                     model="llama-3.2-90b-vision-preview", 
                     messages=[{"role": "user", "content": [
@@ -130,18 +127,18 @@ if prompt := st.chat_input("Message Gobidas..."):
             st.markdown(ans)
             st.session_state.messages.append({"role": "assistant", "content": ans})
             
-            # Save History with validation
+            # Save History
             if st.session_state.user not in st.session_state.db["history"]:
                 st.session_state.db["history"][st.session_state.user] = []
                 
-            current_hist = st.session_state.db["history"][st.session_state.user]
+            history_list = st.session_state.db["history"][st.session_state.user]
             if st.session_state.get("active_idx") is None:
-                current_hist.append({"name": prompt[:20], "msgs": st.session_state.messages})
-                st.session_state.active_idx = len(current_hist) - 1
+                history_list.append({"name": prompt[:20], "msgs": st.session_state.messages})
+                st.session_state.active_idx = len(history_list) - 1
             else:
-                current_hist[st.session_state.active_idx]["msgs"] = st.session_state.messages
+                history_list[st.session_state.active_idx]["msgs"] = st.session_state.messages
             
             save_db(st.session_state.db)
             
         except Exception as e:
-            st.error(f"API Error: {e}")
+            st.error(f"Error: {e}")
