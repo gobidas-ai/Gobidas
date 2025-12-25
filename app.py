@@ -23,7 +23,9 @@ def load_db():
     if os.path.exists(DB_FILE):
         try:
             with open(DB_FILE, "r") as f:
-                return json.load(f)
+                data = json.load(f)
+                if isinstance(data, dict) and "users" in data and "history" in data:
+                    return data
         except: pass
     return {"users": {}, "history": {}}
 
@@ -44,6 +46,7 @@ if "user" not in st.session_state:
         if st.button("LOG IN"):
             if u in st.session_state.db["users"] and st.session_state.db["users"][u] == p:
                 st.session_state.user = u
+                st.session_state.messages = [] # Initialize messages on login
                 st.rerun()
     with t2:
         nu = st.text_input("New User")
@@ -72,21 +75,25 @@ with st.sidebar:
     st.markdown("---")
     st.write("📂 **YOUR CHATS**")
     
-    # Force history to load correctly
+    # SAFE HISTORY LOOP
     user_history = st.session_state.db["history"].get(st.session_state.user, [])
     for i, chat in enumerate(user_history):
-        # Unique keys are vital for the sidebar buttons
-        if st.button(f"🗨️ {chat['name']}", key=f"sidebar_chat_{i}_{len(chat['msgs'])}"):
-            st.session_state.messages = chat['msgs']
-            st.session_state.active_idx = i
-            st.rerun()
+        try:
+            chat_name = chat.get('name', f"Chat {i}")
+            # Dynamic key prevents DuplicateWidgetID error
+            if st.button(f"🗨️ {chat_name}", key=f"hist_{st.session_state.user}_{i}"):
+                st.session_state.messages = chat.get('msgs', [])
+                st.session_state.active_idx = i
+                st.rerun()
+        except Exception:
+            continue
 
 # --- 5. CHAT ENGINE ---
 st.markdown("<h1 class='main-title'>GOBIDAS BETA</h1>", unsafe_allow_html=True)
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Display conversation
+# Show conversation
 for m in st.session_state.messages:
     with st.chat_message(m["role"]): st.markdown(m["content"])
 
@@ -99,34 +106,21 @@ if prompt := st.chat_input("Message Gobidas..."):
     with st.chat_message("assistant"):
         try:
             if img_file:
-                # Image Prep
                 img = Image.open(img_file).convert("RGB")
                 img.thumbnail((800, 800))
                 buf = io.BytesIO()
                 img.save(buf, format="JPEG")
                 b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
                 
-                # AUTOMATIC FALLBACK SYSTEM
-                try:
-                    # Try the 11B model first
-                    res = client.chat.completions.create(
-                        model="llama-3.2-11b-vision-preview", 
-                        messages=[{"role": "user", "content": [
-                            {"type": "text", "text": prompt},
-                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
-                        ]}]
-                    )
-                except Exception:
-                    # If 11B is dead, use the 90B production model
-                    res = client.chat.completions.create(
-                        model="llama-3.2-90b-vision-preview", 
-                        messages=[{"role": "user", "content": [
-                            {"type": "text", "text": prompt},
-                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
-                        ]}]
-                    )
+                # USING 90B VISION (11B is decommissioned)
+                res = client.chat.completions.create(
+                    model="llama-3.2-90b-vision-preview", 
+                    messages=[{"role": "user", "content": [
+                        {"type": "text", "text": prompt},
+                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
+                    ]}]
+                )
             else:
-                # Standard text chat
                 res = client.chat.completions.create(
                     model="llama-3.3-70b-versatile",
                     messages=st.session_state.messages
@@ -136,15 +130,18 @@ if prompt := st.chat_input("Message Gobidas..."):
             st.markdown(ans)
             st.session_state.messages.append({"role": "assistant", "content": ans})
             
-            # Save to history
-            current_history = st.session_state.db["history"][st.session_state.user]
+            # Save History with validation
+            if st.session_state.user not in st.session_state.db["history"]:
+                st.session_state.db["history"][st.session_state.user] = []
+                
+            current_hist = st.session_state.db["history"][st.session_state.user]
             if st.session_state.get("active_idx") is None:
-                current_history.append({"name": prompt[:20], "msgs": st.session_state.messages})
-                st.session_state.active_idx = len(current_history) - 1
+                current_hist.append({"name": prompt[:20], "msgs": st.session_state.messages})
+                st.session_state.active_idx = len(current_hist) - 1
             else:
-                current_history[st.session_state.active_idx]["msgs"] = st.session_state.messages
+                current_hist[st.session_state.active_idx]["msgs"] = st.session_state.messages
             
             save_db(st.session_state.db)
             
         except Exception as e:
-            st.error(f"Critical Error: {e}")
+            st.error(f"API Error: {e}")
