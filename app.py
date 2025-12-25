@@ -1,23 +1,23 @@
 import streamlit as st
 from groq import Groq
-import json, os, base64
+import json, os, base64, io
+from PIL import Image
 
-# --- 1. SET PAGE CONFIG (MUST BE FIRST) ---
+# --- 1. LUXURY UI CONFIG ---
 st.set_page_config(page_title="GOBIDAS BETA", layout="wide", page_icon="🟠")
 
-# --- 2. LUXURY DARK UI ---
 st.markdown("""
     <style>
-    .stApp { background-color: #0A0A0A; color: #E0E0E0; }
+    .stApp { background-color: #0A0A0A; color: white; }
     [data-testid="stSidebar"] { background-color: #111 !important; border-right: 2px solid #FF6D00; }
-    .main-title { font-size: 3.5rem; font-weight: 900; background: linear-gradient(90deg, #FF6D00, #FFAB40); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-align: center; margin-bottom: 20px; }
-    .stButton>button { background: linear-gradient(90deg, #FF6D00, #FFAB40) !important; color: white !important; font-weight: bold !important; border-radius: 12px; border: none; height: 3em; transition: 0.3s; }
-    .stButton>button:hover { transform: scale(1.02); box-shadow: 0px 0px 15px #FF6D00; }
+    .main-title { font-weight: 900; background: linear-gradient(90deg, #FF6D00, #FFAB40); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-align: center; font-size: 3.5rem; margin-bottom: 10px; }
+    .stButton>button { background: linear-gradient(90deg, #FF6D00, #FFAB40) !important; color: white !important; border-radius: 10px; border: none; font-weight: bold; height: 3em; width: 100%; }
     .stChatMessage { background-color: #161616 !important; border: 1px solid #222 !important; border-radius: 15px !important; margin-bottom: 10px; }
+    .stChatInputContainer { border-radius: 15px !important; border: 1px solid #333 !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. LOCAL DATABASE (Account Storage) ---
+# --- 2. DATABASE & IMAGE HELPERS ---
 DB_FILE = "gobidas_db.json"
 
 def load_db():
@@ -28,140 +28,100 @@ def load_db():
 def save_db(data):
     with open(DB_FILE, "w") as f: json.dump(data, f)
 
+def process_image(uploaded_file):
+    img = Image.open(uploaded_file)
+    if img.mode in ("RGBA", "P"): img = img.convert("RGB")
+    img.thumbnail((1024, 1024)) # Keep under 4MB
+    buffered = io.BytesIO()
+    img.save(buffered, format="JPEG", quality=85)
+    return base64.b64encode(buffered.getvalue()).decode('utf-8')
+
 db = load_db()
 
-# --- 4. LOGIN / JOIN SYSTEM ---
+# --- 3. LOGIN / JOIN SYSTEM ---
 if "user" not in st.session_state:
     st.markdown("<h1 class='main-title'>GOBIDAS BETA</h1>", unsafe_allow_html=True)
-    login_tab, join_tab = st.tabs(["🔒 LOGIN", "✨ CREATE ACCOUNT"])
+    l_tab, j_tab = st.tabs(["🔒 LOGIN", "✨ JOIN SYSTEM"])
     
-    with login_tab:
+    with l_tab:
         u = st.text_input("Username", key="l_u")
         p = st.text_input("Password", type="password", key="l_p")
-        if st.button("LOG IN"):
+        if st.button("ENTER SYSTEM"):
             if u in db["users"] and db["users"][u] == p:
                 st.session_state.user = u
                 st.rerun()
-            else: st.error("Wrong info. Try again.")
+            else: st.error("Access Denied")
             
-    with join_tab:
-        nu = st.text_input("New Username", key="j_u")
+    with j_tab:
+        nu = st.text_input("New User", key="j_u")
         np = st.text_input("New Password", type="password", key="j_p")
-        if st.button("JOIN SYSTEM"):
-            if nu in db["users"]: st.error("Name taken.")
+        if st.button("CREATE ACCOUNT"):
+            if nu in db["users"]: st.error("User already exists!")
             elif nu and np:
                 db["users"][nu] = np
                 db["history"][nu] = []
                 save_db(db)
-                st.success("Account created! Now go to the Login tab.")
+                st.success("Success! Now Login.")
     st.stop()
 
-# --- 5. THE AI BRAIN (Groq) ---
+# --- 4. SIDEBAR & AI CONFIG ---
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
-# --- 6. SIDEBAR (History & Image Upload) ---
 with st.sidebar:
     st.markdown(f"<h2 style='color:#FF6D00;'>User: {st.session_state.user}</h2>", unsafe_allow_html=True)
-    
-    if st.button("➕ START NEW CHAT"):
+    if st.button("➕ NEW SESSION"):
         st.session_state.messages = []
-        st.session_state.current_chat_id = None
+        st.session_state.cid = None
         st.rerun()
-
-    st.markdown("---")
-    st.write("🖼️ **IMAGE ANALYSIS**")
-    img = st.file_uploader("Upload image for AI to see", type=['png', 'jpg', 'jpeg'])
     
     st.markdown("---")
-    st.write("📂 **PAST CHATS**")
-    user_chats = db["history"].get(st.session_state.user, [])
-    for idx, chat in enumerate(user_chats):
-        if st.button(f"🗨️ {chat['name']}", key=f"chat_{idx}"):
-            st.session_state.messages = chat['content']
-            st.session_state.current_chat_id = idx
+    img_file = st.file_uploader("🖼️ Analyze Image", type=['png', 'jpg', 'jpeg'])
+    
+    st.markdown("---")
+    st.write("📂 **SAVED CHATS**")
+    user_history = db["history"].get(st.session_state.user, [])
+    for i, chat in enumerate(user_history):
+        if st.button(f"🗨️ {chat['name']}", key=f"h_{i}"):
+            st.session_state.messages = chat['msgs']
+            st.session_state.cid = i
             st.rerun()
 
-# --- 7. MAIN CHAT INTERFACE ---
+# --- 5. MAIN CHAT ENGINE ---
 st.markdown("<h1 class='main-title'>GOBIDAS BETA</h1>", unsafe_allow_html=True)
 
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+if "messages" not in st.session_state: st.session_state.messages = []
 
-# Show previous messages
 for m in st.session_state.messages:
-    with st.chat_message(m["role"]):
-        st.markdown(m["content"])
+    with st.chat_message(m["role"]): st.markdown(m["content"])
 
-# User Input
-if prompt := st.chat_input("Command the AI..."):
+if prompt := st.chat_input("Command Gobidas..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
-        if img: st.image(img, width=300)
-
-    with st.chat_message("assistant"):
-        # Image Analysis vs Text Analysis
-from PIL import Image
-import io
-
-def process_image(uploaded_file):
-    """Resizes image if too large and encodes to base64."""
-    img = Image.open(uploaded_file)
-    # Resize if larger than 1024px to keep it under the 4MB Groq limit
-    if max(img.size) > 1024:
-        img.thumbnail((1024, 1024))
-    
-    buffered = io.BytesIO()
-    # Convert to RGB if it's a PNG with transparency (prevents errors)
-    if img.mode in ("RGBA", "P"):
-        img = img.convert("RGB")
-    
-    img.save(buffered, format="JPEG", quality=85)
-    return base64.b64encode(buffered.getvalue()).decode('utf-8')
-
-# --- REPLACE YOUR CHAT INPUT LOGIC WITH THIS ---
-if prompt := st.chat_input("Command the AI..."):
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
-        if img: st.image(img, width=300)
+        if img_file: st.image(img_file, width=300)
 
     with st.chat_message("assistant"):
         try:
-            if img:
-                # Use the new helper function
-                b64_string = process_image(img)
-                completion = client.chat.completions.create(
+            if img_file:
+                b64 = process_image(img_file)
+                comp = client.chat.completions.create(
                     model="llama-3.2-11b-vision-preview",
-                    messages=[{
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": prompt},
-                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64_string}"}}
-                        ]
-                    }]
+                    messages=[{"role": "user", "content": [{"type":"text","text":prompt}, {"type":"image_url","image_url":{"url":f"data:image/jpeg;base64,{b64}"}}]}]
                 )
             else:
-                completion = client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
-                    messages=st.session_state.messages
-                )
+                comp = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=st.session_state.messages)
             
-            response = completion.choices[0].message.content
-            st.markdown(response)
-            st.session_state.messages.append({"role": "assistant", "content": response})
-            
-            # Save to history logic...
-            # (Keep your existing history saving code here)
+            ans = comp.choices[0].message.content
+            st.markdown(ans)
+            st.session_state.messages.append({"role": "assistant", "content": ans})
 
-        except Exception as e:
-            st.error(f"AI Error: {str(e)}")
-            st.info("Tip: Try a smaller image or a different file format.")
-        # Save to Database History
-        if st.session_state.get("current_chat_id") is None:
-            db["history"][st.session_state.user].append({"name": prompt[:20], "content": st.session_state.messages})
-            st.session_state.current_chat_id = len(db["history"][st.session_state.user]) - 1
-        else:
-            cid = st.session_state.current_chat_id
-            db["history"][st.session_state.user][cid]["content"] = st.session_state.messages
-        save_db(db)
+            # Save to Database
+            if st.session_state.get("cid") is None:
+                db["history"][st.session_state.user].append({"name": prompt[:20], "msgs": st.session_state.messages})
+                st.session_state.cid = len(db["history"][st.session_state.user]) - 1
+            else:
+                db["history"][st.session_state.user][st.session_state.cid]["msgs"] = st.session_state.messages
+            save_db(db)
+
+        except Exception:
+            st.error("⚠️ Sorry, our AI is off right now.")
