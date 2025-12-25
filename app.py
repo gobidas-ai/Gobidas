@@ -101,22 +101,62 @@ if prompt := st.chat_input("Command the AI..."):
 
     with st.chat_message("assistant"):
         # Image Analysis vs Text Analysis
-        if img:
-            b64 = base64.b64encode(img.getvalue()).decode('utf-8')
-            completion = client.chat.completions.create(
-                model="llama-3.2-11b-vision-preview",
-                messages=[{"role": "user", "content": [{"type": "text", "text": prompt}, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}]}]
-            )
-        else:
-            completion = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=st.session_state.messages
-            )
-        
-        response = completion.choices[0].message.content
-        st.markdown(response)
-        st.session_state.messages.append({"role": "assistant", "content": response})
-        
+from PIL import Image
+import io
+
+def process_image(uploaded_file):
+    """Resizes image if too large and encodes to base64."""
+    img = Image.open(uploaded_file)
+    # Resize if larger than 1024px to keep it under the 4MB Groq limit
+    if max(img.size) > 1024:
+        img.thumbnail((1024, 1024))
+    
+    buffered = io.BytesIO()
+    # Convert to RGB if it's a PNG with transparency (prevents errors)
+    if img.mode in ("RGBA", "P"):
+        img = img.convert("RGB")
+    
+    img.save(buffered, format="JPEG", quality=85)
+    return base64.b64encode(buffered.getvalue()).decode('utf-8')
+
+# --- REPLACE YOUR CHAT INPUT LOGIC WITH THIS ---
+if prompt := st.chat_input("Command the AI..."):
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.markdown(prompt)
+        if img: st.image(img, width=300)
+
+    with st.chat_message("assistant"):
+        try:
+            if img:
+                # Use the new helper function
+                b64_string = process_image(img)
+                completion = client.chat.completions.create(
+                    model="llama-3.2-11b-vision-preview",
+                    messages=[{
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64_string}"}}
+                        ]
+                    }]
+                )
+            else:
+                completion = client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=st.session_state.messages
+                )
+            
+            response = completion.choices[0].message.content
+            st.markdown(response)
+            st.session_state.messages.append({"role": "assistant", "content": response})
+            
+            # Save to history logic...
+            # (Keep your existing history saving code here)
+
+        except Exception as e:
+            st.error(f"AI Error: {str(e)}")
+            st.info("Tip: Try a smaller image or a different file format.")
         # Save to Database History
         if st.session_state.get("current_chat_id") is None:
             db["history"][st.session_state.user].append({"name": prompt[:20], "content": st.session_state.messages})
