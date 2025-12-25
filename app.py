@@ -9,7 +9,7 @@ st.set_page_config(page_title="GOBIDAS BETA", layout="wide")
 st.markdown("""
     <style>
     .stApp { background-color: #0A0A0A; color: white; }
-    [data-testid="stSidebar"] { background: #111 !important; border-right: 2px solid #FF6D00; }
+    [data-testid="stSidebar"] { background: #111 !important; border-right: 2px solid #FF6D00; min-width: 250px; }
     .main-title { font-weight: 900; background: linear-gradient(90deg, #FF6D00, #FFAB40); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-align: center; font-size: 3rem; }
     .stButton>button { background: linear-gradient(90deg, #FF6D00, #FFAB40) !important; color: white !important; border-radius: 8px; border: none; width: 100%; font-weight: bold; }
     .stChatMessage { background-color: #161616 !important; border-radius: 12px !important; border: 1px solid #222 !important; }
@@ -53,31 +53,32 @@ if "user" not in st.session_state:
                 st.session_state.db["users"][nu] = np
                 st.session_state.db["history"][nu] = []
                 save_db(st.session_state.db)
-                st.success("Created!")
+                st.success("Account Created! Use Login tab.")
     st.stop()
 
 # --- 4. SIDEBAR ---
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 with st.sidebar:
-    st.markdown(f"### 🟠 {st.session_state.user}")
+    st.markdown(f"### 🟠 User: {st.session_state.user}")
     if st.button("➕ NEW CHAT"):
         st.session_state.messages = []
         st.session_state.active_idx = None
         st.rerun()
     
-    img_file = st.file_uploader("🖼️ Upload Image", type=['png', 'jpg', 'jpeg'])
+    st.markdown("---")
+    img_file = st.sidebar.file_uploader("🖼️ Analyze Image", type=['png', 'jpg', 'jpeg'])
     
     st.markdown("---")
     st.write("📂 **HISTORY**")
     user_history = st.session_state.db["history"].get(st.session_state.user, [])
     for i, chat in enumerate(user_history):
-        if st.button(f"🗨️ {chat['name']}", key=f"h_{i}"):
+        if st.button(f"🗨️ {chat['name']}", key=f"h_btn_{i}"):
             st.session_state.messages = chat['msgs']
             st.session_state.active_idx = i
             st.rerun()
 
-# --- 5. CHAT ---
+# --- 5. CHAT ENGINE ---
 st.markdown("<h1 class='main-title'>GOBIDAS BETA</h1>", unsafe_allow_html=True)
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -94,15 +95,17 @@ if prompt := st.chat_input("Message Gobidas..."):
     with st.chat_message("assistant"):
         try:
             if img_file:
+                # Process image
                 img = Image.open(img_file).convert("RGB")
                 img.thumbnail((800, 800))
                 buf = io.BytesIO()
                 img.save(buf, format="JPEG")
                 b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
                 
-                # UPDATED MODEL NAME HERE
+                # Use Llama 3.2 11B Vision (The specific model requested)
+                # Note: If this fails, try 'llama-3.2-90b-vision-preview'
                 res = client.chat.completions.create(
-                    model="llama-3.2-90b-vision-preview", 
+                    model="llama-3.2-11b-vision-preview", 
                     messages=[{"role": "user", "content": [
                         {"type": "text", "text": prompt},
                         {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
@@ -118,13 +121,15 @@ if prompt := st.chat_input("Message Gobidas..."):
             st.markdown(ans)
             st.session_state.messages.append({"role": "assistant", "content": ans})
             
-            # Update Database
+            # Update History
             if st.session_state.get("active_idx") is None:
                 st.session_state.db["history"][st.session_state.user].append({"name": prompt[:20], "msgs": st.session_state.messages})
                 st.session_state.active_idx = len(st.session_state.db["history"][st.session_state.user]) - 1
             else:
-                st.session_state.db["history"][st.session_state.user][st.session_state.active_idx]["msgs"] = st.session_state.messages
+                idx = st.session_state.active_idx
+                st.session_state.db["history"][st.session_state.user][idx]["msgs"] = st.session_state.messages
             save_db(st.session_state.db)
             
         except Exception as e:
-            st.error(f"API Error: {e}")
+            st.error(f"Error: {e}")
+            st.info("If it says 'decommissioned', try changing the model in the code to 'llama-3.2-90b-vision-preview'.")
