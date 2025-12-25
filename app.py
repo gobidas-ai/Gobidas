@@ -1,37 +1,36 @@
 import streamlit as st
 from groq import Groq
-import json, os, base64, io
-from PIL import Image
+import json, os
 
-# --- 1. UI & STYLE ---
-st.set_page_config(page_title="GOBIDAS BETA", layout="wide")
+# --- 1. SIMPLE UI ---
+st.set_page_config(page_title="GOBIDAS TEXT", layout="wide")
 
 st.markdown("""
     <style>
     .stApp { background-color: #0A0A0A; color: white; }
-    [data-testid="stSidebar"] { background: #111 !important; border-right: 2px solid #FF6D00; min-width: 260px !important; }
-    .main-title { font-weight: 900; background: linear-gradient(90deg, #FF6D00, #FFAB40); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-align: center; font-size: 3rem; }
-    .stButton>button { background: linear-gradient(90deg, #FF6D00, #FFAB40) !important; color: white !important; border-radius: 8px; border: none; width: 100%; font-weight: bold; }
-    .stChatMessage { background-color: #161616 !important; border-radius: 12px !important; border: 1px solid #222 !important; }
+    [data-testid="stSidebar"] { background: #111 !important; border-right: 2px solid #FF6D00; }
+    .main-title { font-weight: 900; color: #FF6D00; text-align: center; font-size: 3rem; }
+    .stButton>button { background: #FF6D00 !important; color: white !important; font-weight: bold; width: 100%; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. DATABASE (With Auto-Repair) ---
+# --- 2. THE BULLETPROOF DATABASE ---
 DB_FILE = "gobidas_db.json"
 
 def load_db():
-    default = {"users": {}, "history": {}}
     if os.path.exists(DB_FILE):
         try:
             with open(DB_FILE, "r") as f:
                 data = json.load(f)
-                # Ensure structure exists
-                if not isinstance(data, dict): return default
-                if "users" not in data: data["users"] = {}
-                if "history" not in data: data["history"] = {}
+                # Force the correct structure if it's broken
+                if not isinstance(data, dict) or "users" not in data:
+                    return {"users": {}, "history": {}}
+                if "history" not in data:
+                    data["history"] = {}
                 return data
-        except: return default
-    return default
+        except:
+            return {"users": {}, "history": {}}
+    return {"users": {}, "history": {}}
 
 def save_db(data):
     with open(DB_FILE, "w") as f:
@@ -40,113 +39,85 @@ def save_db(data):
 if "db" not in st.session_state:
     st.session_state.db = load_db()
 
-# --- 3. LOGIN / SIGNUP ---
+# --- 3. LOGIN SYSTEM ---
 if "user" not in st.session_state:
-    st.markdown("<h1 class='main-title'>GOBIDAS BETA</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 class='main-title'>GOBIDAS LOGIN</h1>", unsafe_allow_html=True)
     t1, t2 = st.tabs(["Login", "Join"])
+    
     with t1:
-        u = st.text_input("Username", key="login_u")
-        p = st.text_input("Password", type="password", key="login_p")
+        u = st.text_input("Username")
+        p = st.text_input("Password", type="password")
         if st.button("LOG IN"):
             if u in st.session_state.db["users"] and st.session_state.db["users"][u] == p:
                 st.session_state.user = u
                 st.session_state.messages = []
                 st.rerun()
-            else: st.error("Access Denied")
+            else:
+                st.error("Invalid Username or Password")
+    
     with t2:
-        nu = st.text_input("New User", key="reg_u")
-        np = st.text_input("New Pass", type="password", key="reg_p")
+        nu = st.text_input("New Username")
+        np = st.text_input("New Password", type="password")
         if st.button("CREATE ACCOUNT"):
             if nu and np:
                 st.session_state.db["users"][nu] = np
                 st.session_state.db["history"][nu] = []
                 save_db(st.session_state.db)
-                st.success("Success! Use the Login tab.")
+                st.success("Success! Please log in.")
     st.stop()
 
-# --- 4. SIDEBAR (Safe Mode) ---
+# --- 4. SIDEBAR ---
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 with st.sidebar:
-    st.markdown(f"### 🟠 {st.session_state.user}")
+    st.title(f"🟠 {st.session_state.user}")
     if st.button("➕ NEW CHAT"):
         st.session_state.messages = []
-        st.session_state.active_idx = None
         st.rerun()
     
     st.markdown("---")
-    img_file = st.file_uploader("🖼️ Analyze Image", type=['png', 'jpg', 'jpeg'])
-    
-    st.markdown("---")
-    st.write("📂 **HISTORY**")
-    
-    # DEFENSIVE LOOP: Checks for missing keys to prevent KeyError
-    history_data = st.session_state.db.get("history", {}).get(st.session_state.user, [])
-    for i, chat in enumerate(history_data):
-        if not isinstance(chat, dict): continue
-        chat_name = chat.get("name", f"Chat {i}")
-        chat_msgs = chat.get("msgs", [])
-        
-        # Unique key includes message count to force refresh
-        if st.button(f"🗨️ {chat_name}", key=f"hist_nav_{i}_{len(chat_msgs)}"):
-            st.session_state.messages = chat_msgs
-            st.session_state.active_idx = i
-            st.rerun()
+    # This button wipes the local data if things get buggy
+    if st.button("⚠️ CLEAR MY HISTORY"):
+        st.session_state.db["history"][st.session_state.user] = []
+        save_db(st.session_state.db)
+        st.session_state.messages = []
+        st.rerun()
 
 # --- 5. CHAT ENGINE ---
 st.markdown("<h1 class='main-title'>GOBIDAS BETA</h1>", unsafe_allow_html=True)
+
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
+# Show the messages
 for m in st.session_state.messages:
-    with st.chat_message(m["role"]): st.markdown(m["content"])
+    with st.chat_message(m["role"]):
+        st.markdown(m["content"])
 
-if prompt := st.chat_input("Ask Gobidas..."):
+# User input
+if prompt := st.chat_input("Ask me anything..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
-        if img_file: st.image(img_file, width=200)
 
     with st.chat_message("assistant"):
         try:
-            if img_file:
-                # Optimized Image Processing
-                img = Image.open(img_file).convert("RGB")
-                img.thumbnail((800, 800))
-                buf = io.BytesIO()
-                img.save(buf, format="JPEG", quality=80)
-                b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
-                
-                # Using the current Llama 3.2 90B Vision model
-                res = client.chat.completions.create(
-                    model="llama-3.2-90b-vision-preview", 
-                    messages=[{"role": "user", "content": [
-                        {"type": "text", "text": prompt},
-                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
-                    ]}]
-                )
-            else:
-                res = client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
-                    messages=st.session_state.messages
-                )
-            
-            ans = res.choices[0].message.content
+            # Using the most stable text model available
+            response = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=st.session_state.messages
+            )
+            ans = response.choices[0].message.content
             st.markdown(ans)
             st.session_state.messages.append({"role": "assistant", "content": ans})
             
-            # SAFE SAVE: Ensure history exists for user
+            # Save to history safely
             if st.session_state.user not in st.session_state.db["history"]:
                 st.session_state.db["history"][st.session_state.user] = []
-                
-            user_chats = st.session_state.db["history"][st.session_state.user]
-            if st.session_state.get("active_idx") is None:
-                user_chats.append({"name": prompt[:20], "msgs": st.session_state.messages})
-                st.session_state.active_idx = len(user_chats) - 1
-            else:
-                user_chats[st.session_state.active_idx]["msgs"] = st.session_state.messages
             
+            # Just keep the last chat active for simplicity
+            st.session_state.db["history"][st.session_state.user] = st.session_state.messages
             save_db(st.session_state.db)
             
         except Exception as e:
-            st.error(f"Something went wrong: {str(e)}")
+            st.error(f"AI Error: {str(e)}")
