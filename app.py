@@ -3,7 +3,7 @@ from groq import Groq
 import json, os, base64, io
 from PIL import Image
 
-# --- 1. CONFIG & UI ---
+# --- 1. UI SETUP ---
 st.set_page_config(page_title="GOBIDAS BETA", layout="wide")
 
 st.markdown("""
@@ -11,8 +11,8 @@ st.markdown("""
     .stApp { background-color: #0A0A0A; color: white; }
     [data-testid="stSidebar"] { background: #111 !important; border-right: 2px solid #FF6D00; }
     .main-title { font-weight: 900; background: linear-gradient(90deg, #FF6D00, #FFAB40); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-align: center; font-size: 3rem; }
-    .stButton>button { background: linear-gradient(90deg, #FF6D00, #FFAB40) !important; color: white !important; font-weight: bold; border: none; }
-    .stChatMessage { background-color: #161616 !important; border: 1px solid #222 !important; border-radius: 10px !important; }
+    .stButton>button { background: linear-gradient(90deg, #FF6D00, #FFAB40) !important; color: white !important; border-radius: 8px; border: none; width: 100%; font-weight: bold; }
+    .stChatMessage { background-color: #161616 !important; border-radius: 12px !important; border: 1px solid #222 !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -20,84 +20,72 @@ st.markdown("""
 DB_FILE = "gobidas_db.json"
 
 def load_db():
-    try:
-        if os.path.exists(DB_FILE):
+    if os.path.exists(DB_FILE):
+        try:
             with open(DB_FILE, "r") as f:
                 return json.load(f)
-    except:
-        pass
+        except: pass
     return {"users": {}, "history": {}}
 
 def save_db(data):
     with open(DB_FILE, "w") as f:
         json.dump(data, f)
 
-# Initialize session data
 if "db" not in st.session_state:
     st.session_state.db = load_db()
 
 # --- 3. LOGIN / JOIN ---
 if "user" not in st.session_state:
     st.markdown("<h1 class='main-title'>GOBIDAS BETA</h1>", unsafe_allow_html=True)
-    tab1, tab2 = st.tabs(["Login", "Join"])
-    
-    with tab1:
+    t1, t2 = st.tabs(["Login", "Join"])
+    with t1:
         u = st.text_input("Username")
         p = st.text_input("Password", type="password")
         if st.button("LOG IN"):
             if u in st.session_state.db["users"] and st.session_state.db["users"][u] == p:
                 st.session_state.user = u
                 st.rerun()
-            else: st.error("Invalid Credentials")
-            
-    with tab2:
-        nu = st.text_input("New Username")
-        np = st.text_input("New Password", type="password")
-        if st.button("CREATE ACCOUNT"):
+    with t2:
+        nu = st.text_input("New User")
+        np = st.text_input("New Pass", type="password")
+        if st.button("SIGN UP"):
             if nu and np:
                 st.session_state.db["users"][nu] = np
                 st.session_state.db["history"][nu] = []
                 save_db(st.session_state.db)
-                st.success("Success! Log in now.")
+                st.success("Created!")
     st.stop()
 
-# --- 4. SIDEBAR (Explicit Rendering) ---
+# --- 4. SIDEBAR ---
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
-# Force Sidebar to appear
 with st.sidebar:
-    st.subheader(f"User: {st.session_state.user}")
-    
+    st.markdown(f"### 🟠 {st.session_state.user}")
     if st.button("➕ NEW CHAT"):
         st.session_state.messages = []
-        st.session_state.chat_idx = None
+        st.session_state.active_idx = None
         st.rerun()
-
-    st.markdown("---")
-    img_file = st.file_uploader("🖼️ Analyze Image", type=['png', 'jpg', 'jpeg'])
-
+    
+    img_file = st.file_uploader("🖼️ Upload Image", type=['png', 'jpg', 'jpeg'])
+    
     st.markdown("---")
     st.write("📂 **HISTORY**")
     user_history = st.session_state.db["history"].get(st.session_state.user, [])
     for i, chat in enumerate(user_history):
-        if st.button(f"🗨️ {chat['name']}", key=f"hist_btn_{i}"):
+        if st.button(f"🗨️ {chat['name']}", key=f"h_{i}"):
             st.session_state.messages = chat['msgs']
-            st.session_state.chat_idx = i
+            st.session_state.active_idx = i
             st.rerun()
 
-# --- 5. CHAT INTERFACE ---
+# --- 5. CHAT ---
 st.markdown("<h1 class='main-title'>GOBIDAS BETA</h1>", unsafe_allow_html=True)
-
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Display current messages
 for m in st.session_state.messages:
-    with st.chat_message(m["role"]):
-        st.markdown(m["content"])
+    with st.chat_message(m["role"]): st.markdown(m["content"])
 
-# User Input
-if prompt := st.chat_input("Command Gobidas..."):
+if prompt := st.chat_input("Message Gobidas..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
@@ -106,47 +94,37 @@ if prompt := st.chat_input("Command Gobidas..."):
     with st.chat_message("assistant"):
         try:
             if img_file:
-                # 1. Image Prep
-                pil_img = Image.open(img_file).convert("RGB")
-                pil_img.thumbnail((800, 800))
-                b_io = io.BytesIO()
-                pil_img.save(b_io, format="JPEG")
-                b64_str = base64.b64encode(b_io.getvalue()).decode('utf-8')
+                img = Image.open(img_file).convert("RGB")
+                img.thumbnail((800, 800))
+                buf = io.BytesIO()
+                img.save(buf, format="JPEG")
+                b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
                 
-                # 2. Vision Call
-                response = client.chat.completions.create(
-                    model="llama-3.2-11b-vision-preview",
-                    messages=[{
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": prompt},
-                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64_str}"}}
-                        ]
-                    }]
+                # UPDATED MODEL NAME HERE
+                res = client.chat.completions.create(
+                    model="llama-3.2-90b-vision-preview", 
+                    messages=[{"role": "user", "content": [
+                        {"type": "text", "text": prompt},
+                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
+                    ]}]
                 )
             else:
-                # 3. Text Call
-                response = client.chat.completions.create(
+                res = client.chat.completions.create(
                     model="llama-3.3-70b-versatile",
                     messages=st.session_state.messages
                 )
             
-            ans = response.choices[0].message.content
+            ans = res.choices[0].message.content
             st.markdown(ans)
             st.session_state.messages.append({"role": "assistant", "content": ans})
-
-            # 4. Save to History
-            if st.session_state.get("chat_idx") is None:
-                st.session_state.db["history"][st.session_state.user].append({
-                    "name": prompt[:20], 
-                    "msgs": st.session_state.messages
-                })
-                st.session_state.chat_idx = len(st.session_state.db["history"][st.session_state.user]) - 1
-            else:
-                idx = st.session_state.chat_idx
-                st.session_state.db["history"][st.session_state.user][idx]["msgs"] = st.session_state.messages
             
+            # Update Database
+            if st.session_state.get("active_idx") is None:
+                st.session_state.db["history"][st.session_state.user].append({"name": prompt[:20], "msgs": st.session_state.messages})
+                st.session_state.active_idx = len(st.session_state.db["history"][st.session_state.user]) - 1
+            else:
+                st.session_state.db["history"][st.session_state.user][st.session_state.active_idx]["msgs"] = st.session_state.messages
             save_db(st.session_state.db)
-
+            
         except Exception as e:
-            st.error(f"API Error: {str(e)}")
+            st.error(f"API Error: {e}")
