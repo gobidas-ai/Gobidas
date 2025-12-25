@@ -9,7 +9,7 @@ st.set_page_config(page_title="GOBIDAS BETA", layout="wide")
 st.markdown("""
     <style>
     .stApp { background-color: #0A0A0A; color: white; }
-    [data-testid="stSidebar"] { background: #111 !important; border-right: 2px solid #FF6D00; min-width: 250px; }
+    [data-testid="stSidebar"] { background: #111 !important; border-right: 2px solid #FF6D00; min-width: 260px !important; }
     .main-title { font-weight: 900; background: linear-gradient(90deg, #FF6D00, #FFAB40); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-align: center; font-size: 3rem; }
     .stButton>button { background: linear-gradient(90deg, #FF6D00, #FFAB40) !important; color: white !important; border-radius: 8px; border: none; width: 100%; font-weight: bold; }
     .stChatMessage { background-color: #161616 !important; border-radius: 12px !important; border: 1px solid #222 !important; }
@@ -61,19 +61,22 @@ client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 with st.sidebar:
     st.markdown(f"### 🟠 User: {st.session_state.user}")
-    if st.button("➕ NEW CHAT"):
+    if st.button("➕ NEW CHAT", use_container_width=True):
         st.session_state.messages = []
         st.session_state.active_idx = None
         st.rerun()
     
     st.markdown("---")
-    img_file = st.sidebar.file_uploader("🖼️ Analyze Image", type=['png', 'jpg', 'jpeg'])
+    img_file = st.file_uploader("🖼️ Analyze Image", type=['png', 'jpg', 'jpeg'])
     
     st.markdown("---")
-    st.write("📂 **HISTORY**")
+    st.write("📂 **YOUR CHATS**")
+    
+    # Force history to load correctly
     user_history = st.session_state.db["history"].get(st.session_state.user, [])
     for i, chat in enumerate(user_history):
-        if st.button(f"🗨️ {chat['name']}", key=f"h_btn_{i}"):
+        # Unique keys are vital for the sidebar buttons
+        if st.button(f"🗨️ {chat['name']}", key=f"sidebar_chat_{i}_{len(chat['msgs'])}"):
             st.session_state.messages = chat['msgs']
             st.session_state.active_idx = i
             st.rerun()
@@ -83,6 +86,7 @@ st.markdown("<h1 class='main-title'>GOBIDAS BETA</h1>", unsafe_allow_html=True)
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
+# Display conversation
 for m in st.session_state.messages:
     with st.chat_message(m["role"]): st.markdown(m["content"])
 
@@ -95,23 +99,34 @@ if prompt := st.chat_input("Message Gobidas..."):
     with st.chat_message("assistant"):
         try:
             if img_file:
-                # Process image
+                # Image Prep
                 img = Image.open(img_file).convert("RGB")
                 img.thumbnail((800, 800))
                 buf = io.BytesIO()
                 img.save(buf, format="JPEG")
                 b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
                 
-                # Use Llama 3.2 11B Vision (The specific model requested)
-                # Note: If this fails, try 'llama-3.2-90b-vision-preview'
-                res = client.chat.completions.create(
-                    model="llama-3.2-11b-vision-preview", 
-                    messages=[{"role": "user", "content": [
-                        {"type": "text", "text": prompt},
-                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
-                    ]}]
-                )
+                # AUTOMATIC FALLBACK SYSTEM
+                try:
+                    # Try the 11B model first
+                    res = client.chat.completions.create(
+                        model="llama-3.2-11b-vision-preview", 
+                        messages=[{"role": "user", "content": [
+                            {"type": "text", "text": prompt},
+                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
+                        ]}]
+                    )
+                except Exception:
+                    # If 11B is dead, use the 90B production model
+                    res = client.chat.completions.create(
+                        model="llama-3.2-90b-vision-preview", 
+                        messages=[{"role": "user", "content": [
+                            {"type": "text", "text": prompt},
+                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
+                        ]}]
+                    )
             else:
+                # Standard text chat
                 res = client.chat.completions.create(
                     model="llama-3.3-70b-versatile",
                     messages=st.session_state.messages
@@ -121,15 +136,15 @@ if prompt := st.chat_input("Message Gobidas..."):
             st.markdown(ans)
             st.session_state.messages.append({"role": "assistant", "content": ans})
             
-            # Update History
+            # Save to history
+            current_history = st.session_state.db["history"][st.session_state.user]
             if st.session_state.get("active_idx") is None:
-                st.session_state.db["history"][st.session_state.user].append({"name": prompt[:20], "msgs": st.session_state.messages})
-                st.session_state.active_idx = len(st.session_state.db["history"][st.session_state.user]) - 1
+                current_history.append({"name": prompt[:20], "msgs": st.session_state.messages})
+                st.session_state.active_idx = len(current_history) - 1
             else:
-                idx = st.session_state.active_idx
-                st.session_state.db["history"][st.session_state.user][idx]["msgs"] = st.session_state.messages
+                current_history[st.session_state.active_idx]["msgs"] = st.session_state.messages
+            
             save_db(st.session_state.db)
             
         except Exception as e:
-            st.error(f"Error: {e}")
-            st.info("If it says 'decommissioned', try changing the model in the code to 'llama-3.2-90b-vision-preview'.")
+            st.error(f"Critical Error: {e}")
