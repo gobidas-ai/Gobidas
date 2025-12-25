@@ -2,112 +2,126 @@ import streamlit as st
 from groq import Groq
 import json, os, base64
 
-# --- 1. LUXURY PRO UI ---
-st.set_page_config(page_title="Gobidas Pro", layout="wide", page_icon="🟠")
+# --- 1. SET PAGE CONFIG (MUST BE FIRST) ---
+st.set_page_config(page_title="GOBIDAS BETA", layout="wide", page_icon="🟠")
 
+# --- 2. LUXURY DARK UI ---
 st.markdown("""
     <style>
     .stApp { background-color: #0A0A0A; color: #E0E0E0; }
-    [data-testid="stSidebar"] { background-color: #111 !important; border-right: 1px solid #FF6D00; }
-    .main-title { font-size: 3rem; font-weight: 900; background: linear-gradient(90deg, #FF6D00, #FFAB40); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-align: center; }
-    .stButton>button { background: linear-gradient(90deg, #FF6D00, #FFAB40) !important; color: white !important; font-weight: bold !important; border-radius: 12px; border: none; width: 100%; }
-    .stChatMessage { background-color: #161616 !important; border: 1px solid #222 !important; border-radius: 15px !important; }
+    [data-testid="stSidebar"] { background-color: #111 !important; border-right: 2px solid #FF6D00; }
+    .main-title { font-size: 3.5rem; font-weight: 900; background: linear-gradient(90deg, #FF6D00, #FFAB40); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-align: center; margin-bottom: 20px; }
+    .stButton>button { background: linear-gradient(90deg, #FF6D00, #FFAB40) !important; color: white !important; font-weight: bold !important; border-radius: 12px; border: none; height: 3em; transition: 0.3s; }
+    .stButton>button:hover { transform: scale(1.02); box-shadow: 0px 0px 15px #FF6D00; }
+    .stChatMessage { background-color: #161616 !important; border: 1px solid #222 !important; border-radius: 15px !important; margin-bottom: 10px; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. LOCAL DATA STORAGE (The "Account" Memory) ---
-DATA_FILE = "user_database.json"
+# --- 3. LOCAL DATABASE (Account Storage) ---
+DB_FILE = "gobidas_db.json"
 
 def load_db():
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "r") as f: return json.load(f)
+    if os.path.exists(DB_FILE):
+        with open(DB_FILE, "r") as f: return json.load(f)
     return {"users": {}, "history": {}}
 
-def save_db(db):
-    with open(DATA_FILE, "w") as f: json.dump(db, f)
+def save_db(data):
+    with open(DB_FILE, "w") as f: json.dump(data, f)
 
-db_data = load_db()
+db = load_db()
 
-# --- 3. AUTHENTICATION (Login/Join Tabs) ---
+# --- 4. LOGIN / JOIN SYSTEM ---
 if "user" not in st.session_state:
-    st.markdown("<h1 class='main-title'>GOBIDAS PRO</h1>", unsafe_allow_html=True)
-    tab_login, tab_join = st.tabs(["🔒 LOGIN", "✨ JOIN SYSTEM"])
+    st.markdown("<h1 class='main-title'>GOBIDAS BETA</h1>", unsafe_allow_html=True)
+    login_tab, join_tab = st.tabs(["🔒 LOGIN", "✨ CREATE ACCOUNT"])
     
-    with tab_login:
-        u = st.text_input("Username", key="login_u")
-        p = st.text_input("Password", type="password", key="login_p")
-        if st.button("ACCESS SYSTEM"):
-            if u in db_data["users"] and db_data["users"][u] == p:
+    with login_tab:
+        u = st.text_input("Username", key="l_u")
+        p = st.text_input("Password", type="password", key="l_p")
+        if st.button("LOG IN"):
+            if u in db["users"] and db["users"][u] == p:
                 st.session_state.user = u
                 st.rerun()
-            else: st.error("Invalid Username or Password")
+            else: st.error("Wrong info. Try again.")
             
-    with tab_join:
-        new_u = st.text_input("Choose Username", key="join_u")
-        new_p = st.text_input("Choose Password", type="password", key="join_p")
-        if st.button("CREATE ACCOUNT"):
-            if new_u in db_data["users"]: st.error("Username already taken!")
-            elif new_u and new_p:
-                db_data["users"][new_u] = new_p
-                db_data["history"][new_u] = []
-                save_db(db_data)
-                st.success("Account Created! Go to Login tab.")
+    with join_tab:
+        nu = st.text_input("New Username", key="j_u")
+        np = st.text_input("New Password", type="password", key="j_p")
+        if st.button("JOIN SYSTEM"):
+            if nu in db["users"]: st.error("Name taken.")
+            elif nu and np:
+                db["users"][nu] = np
+                db["history"][nu] = []
+                save_db(db)
+                st.success("Account created! Now go to the Login tab.")
     st.stop()
 
-# --- 4. SIDEBAR (History & New Chat) ---
+# --- 5. THE AI BRAIN (Groq) ---
+client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+
+# --- 6. SIDEBAR (History & Image Upload) ---
 with st.sidebar:
-    st.markdown(f"<h2 style='color:#FF6D00;'>Hello, {st.session_state.user}</h2>", unsafe_allow_html=True)
-    if st.button("➕ NEW SESSION"):
+    st.markdown(f"<h2 style='color:#FF6D00;'>User: {st.session_state.user}</h2>", unsafe_allow_html=True)
+    
+    if st.button("➕ START NEW CHAT"):
         st.session_state.messages = []
-        st.session_state.active_chat_index = None
+        st.session_state.current_chat_id = None
         st.rerun()
+
+    st.markdown("---")
+    st.write("🖼️ **IMAGE ANALYSIS**")
+    img = st.file_uploader("Upload image for AI to see", type=['png', 'jpg', 'jpeg'])
     
     st.markdown("---")
     st.write("📂 **PAST CHATS**")
-    user_history = db_data["history"].get(st.session_state.user, [])
-    for i, chat in enumerate(user_history):
-        if st.button(f"🗨️ {chat['title']}", key=f"hist_{i}"):
-            st.session_state.messages = chat['msgs']
-            st.session_state.active_chat_index = i
+    user_chats = db["history"].get(st.session_state.user, [])
+    for idx, chat in enumerate(user_chats):
+        if st.button(f"🗨️ {chat['name']}", key=f"chat_{idx}"):
+            st.session_state.messages = chat['content']
+            st.session_state.current_chat_id = idx
             st.rerun()
 
-# --- 5. AI ENGINE & VISION ---
-client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+# --- 7. MAIN CHAT INTERFACE ---
+st.markdown("<h1 class='main-title'>GOBIDAS BETA</h1>", unsafe_allow_html=True)
 
-st.markdown("<h1 class='main-title'>Gobidas Vision</h1>", unsafe_allow_html=True)
-if "messages" not in st.session_state: st.session_state.messages = []
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-# Vision Uploader
-uploaded_img = st.sidebar.file_uploader("🖼️ Analyze Image", type=['png', 'jpg', 'jpeg'])
-
-# Display Chat
+# Show previous messages
 for m in st.session_state.messages:
-    with st.chat_message(m["role"]): st.markdown(m["content"])
+    with st.chat_message(m["role"]):
+        st.markdown(m["content"])
 
-# Chat Input
+# User Input
 if prompt := st.chat_input("Command the AI..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
-        if uploaded_img: st.image(uploaded_img, width=300)
+        if img: st.image(img, width=300)
 
     with st.chat_message("assistant"):
-        if uploaded_img:
-            # Llama-3.2 Vision Model
-            b64_img = base64.b64encode(uploaded_img.getvalue()).decode('utf-8')
-            comp = client.chat.completions.create(
+        # Image Analysis vs Text Analysis
+        if img:
+            b64 = base64.b64encode(img.getvalue()).decode('utf-8')
+            completion = client.chat.completions.create(
                 model="llama-3.2-11b-vision-preview",
-                messages=[{"role": "user", "content": [{"type": "text", "text": prompt}, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64_img}"}}]}]
+                messages=[{"role": "user", "content": [{"type": "text", "text": prompt}, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}]}]
             )
         else:
-            # Standard Text Model
-            comp = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=st.session_state.messages)
+            completion = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=st.session_state.messages
+            )
         
-        ans = comp.choices[0].message.content
-        st.markdown(ans)
-        st.session_state.messages.append({"role": "assistant", "content": ans})
+        response = completion.choices[0].message.content
+        st.markdown(response)
+        st.session_state.messages.append({"role": "assistant", "content": response})
         
-        # SAVE TO LOCAL DB
-        if st.session_state.get("active_chat_index") is None:
-            db_data["history"][st.session_state.user].append({"title": prompt[:20], "msgs": st.session_state.messages})
-            st.session_state.active_chat_index = len(db_data
+        # Save to Database History
+        if st.session_state.get("current_chat_id") is None:
+            db["history"][st.session_state.user].append({"name": prompt[:20], "content": st.session_state.messages})
+            st.session_state.current_chat_id = len(db["history"][st.session_state.user]) - 1
+        else:
+            cid = st.session_state.current_chat_id
+            db["history"][st.session_state.user][cid]["content"] = st.session_state.messages
+        save_db(db)
