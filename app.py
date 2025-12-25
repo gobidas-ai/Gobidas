@@ -1,92 +1,116 @@
 import streamlit as st
 from groq import Groq
-from datetime import datetime
+import pandas as pd
+from supabase import create_client
+import base64
 
-# --- 1. PAGE CONFIG & DARK PRO UI ---
-st.set_page_config(page_title="Gobidas Beta", layout="wide", page_icon="🟠")
-
+# --- 1. PRO UI ---
+st.set_page_config(page_title="Gobidas Vision", layout="wide", page_icon="🟠")
 st.markdown("""
     <style>
-    .stApp { background-color: #0A0A0A; color: #E0E0E0; }
-    [data-testid="stSidebar"] { background-color: #111111 !important; border-right: 1px solid #222222; }
-    .stSidebar .stButton>button {
-        background-color: transparent !important; color: #888 !important;
-        border: 1px solid #222 !important; border-radius: 12px !important;
-        text-align: left !important; width: 100%; transition: 0.3s;
-    }
-    .stSidebar .stButton>button:hover { color: #FF6D00 !important; border-color: #FF6D00 !important; }
-    .main-title { font-size: 2.5rem; font-weight: 900; background: linear-gradient(90deg, #FF6D00, #FFAB40);
-                  -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .stApp { background-color: #0A0A0A; color: white; }
+    [data-testid="stSidebar"] { background-color: #111 !important; }
+    .stButton>button { background: #FF6D00 !important; color: white; border-radius: 10px; width: 100%; }
+    .main-title { font-weight: 900; background: linear-gradient(90deg, #FF6D00, #FFAB40); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. SESSION INITIALIZATION ---
-if "logged_in" not in st.session_state: st.session_state.logged_in = False
-if "chat_history" not in st.session_state: st.session_state.chat_history = {} # Stories all chats
-if "current_chat_id" not in st.session_state: st.session_state.current_chat_id = "Default Chat"
+# --- 2. CONNECT DATABASE & AI ---
+db = create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
+client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
-# --- 3. LOGIN SYSTEM (Lazy Method) ---
-if not st.session_state.logged_in:
-    _, center, _ = st.columns([1, 1, 1])
-    with center:
-        st.markdown("<h1 style='text-align: center; color: #FF6D00;'>Gobidas Access</h1>", unsafe_allow_html=True)
-        u = st.text_input("Username")
-        p = st.text_input("Password", type="password")
-        if st.button("Initialize System"):
-            # Checks your Streamlit Secrets for the password list
-            if u in st.secrets["passwords"] and p == st.secrets["passwords"][u]:
-                st.session_state.logged_in = True
+def encode_image(image_file):
+    return base64.b64encode(image_file.getvalue()).decode('utf-8')
+
+# --- 3. AUTHENTICATION ---
+if "user" not in st.session_state:
+    st.markdown("<h1 class='main-title' style='text-align:center;'>GOBIDAS SYSTEM</h1>", unsafe_allow_html=True)
+    tab1, tab2 = st.tabs(["Login", "Join System"])
+    
+    with tab1:
+        u = st.text_input("Username", key="l_u")
+        p = st.text_input("Password", type="password", key="l_p")
+        if st.button("Access"):
+            res = db.table("profiles").select("*").eq("username", u).eq("password", p).execute()
+            if res.data:
                 st.session_state.user = u
                 st.rerun()
-            else:
-                st.error("Access Denied.")
+            else: st.error("Invalid Credentials")
+            
+    with tab2:
+        new_u = st.text_input("New Username")
+        new_p = st.text_input("New Password", type="password")
+        if st.button("Create Account"):
+            try:
+                db.table("profiles").insert({"username": new_u, "password": new_p}).execute()
+                st.success("Account Created! You can now login.")
+            except: st.error("Username taken.")
     st.stop()
 
-# --- 4. SIDEBAR (History & Controls) ---
+# --- 4. SIDEBAR & HISTORY ---
 with st.sidebar:
-    st.markdown(f"<h2 style='color:#FF6D00;'>👤 {st.session_state.user.upper()}</h2>", unsafe_allow_html=True)
-    
-    if st.button("➕ START NEW CHAT"):
-        new_id = f"Chat {datetime.now().strftime('%H:%M:%S')}"
-        st.session_state.current_chat_id = new_id
+    st.title(f"🟠 {st.session_state.user}")
+    if st.button("➕ NEW CHAT"):
+        st.session_state.chat_id = None
+        st.session_state.messages = []
         st.rerun()
 
-    st.markdown("### COLLECTIONS")
-    for chat_id in st.session_state.chat_history.keys():
-        if st.button(f"● {chat_id}"):
-            st.session_state.current_chat_id = chat_id
+    st.markdown("### HISTORY")
+    hist = db.table("chats").select("id, title").eq("username", st.session_state.user).order("id", desc=True).execute()
+    for chat in hist.data:
+        if st.button(f"🗨️ {chat['title']}", key=f"h_{chat['id']}"):
+            res = db.table("chats").select("messages").eq("id", chat['id']).execute()
+            st.session_state.messages = res.data[0]['messages']
+            st.session_state.chat_id = chat['id']
             st.rerun()
 
-    if st.button("Logout"):
-        st.session_state.logged_in = False
-        st.rerun()
+# --- 5. CHAT & VISION ---
+st.markdown("<h1 class='main-title'>Gobidas Vision</h1>", unsafe_allow_html=True)
 
-# --- 5. MAIN CHAT LOGIC ---
-st.markdown("<h1 class='main-title'>Gobidas Beta</h1>", unsafe_allow_html=True)
+if "messages" not in st.session_state: st.session_state.messages = []
+for m in st.session_state.messages:
+    with st.chat_message(m["role"]): st.markdown(m["content"])
 
-# Ensure current chat exists in history
-if st.session_state.current_chat_id not in st.session_state.chat_history:
-    st.session_state.chat_history[st.session_state.current_chat_id] = []
+# Image Upload
+img_file = st.sidebar.file_uploader("Upload Image to Analyze", type=['png', 'jpg', 'jpeg'])
 
-messages = st.session_state.chat_history[st.session_state.current_chat_id]
-
-# Display history
-for msg in messages:
-    with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
-
-# Input
-if prompt := st.chat_input("Ask Gobidas..."):
-    messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"): st.markdown(prompt)
+if prompt := st.chat_input("Ask about the image or chat..."):
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.markdown(prompt)
+        if img_file: st.image(img_file, width=300)
 
     with st.chat_message("assistant"):
-        client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-        res = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=messages
-        )
-        ans = res.choices[0].message.content
-        st.markdown(ans)
-        messages.append({"role": "assistant", "content": ans})
+        if img_file:
+            # Use Llama Vision Model
+            base64_image = encode_image(img_file)
+            chat_completion = client.chat.completions.create(
+                model="llama-3.2-11b-vision-preview",
+                messages=[{
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
+                    ]
+                }]
+            )
+        else:
+            chat_completion = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=st.session_state.messages
+            )
+            
+        response = chat_completion.choices[0].message.content
+        st.markdown(response)
+        st.session_state.messages.append({"role": "assistant", "content": response})
         
+        # Auto-Save to Database
+        if "chat_id" not in st.session_state or st.session_state.chat_id is None:
+            new_chat = db.table("chats").insert({
+                "username": st.session_state.user, 
+                "title": prompt[:20], 
+                "messages": st.session_state.messages
+            }).execute()
+            st.session_state.chat_id = new_chat.data[0]['id']
+        else:
+            db.table("chats").update({"messages": st.session_state.messages}).eq("id", st.session_state.chat_id).execute()
