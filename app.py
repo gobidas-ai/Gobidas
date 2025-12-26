@@ -3,7 +3,7 @@ from groq import Groq
 import json, os, base64, io, time
 from PIL import Image
 
-# --- 1. CONFIG & REFINED UI HIDING ---
+# --- 1. CONFIG & TOTAL UI CLEANUP ---
 st.set_page_config(page_title="Gobidas Beta", layout="wide", initial_sidebar_state="expanded")
 
 def get_base64(file):
@@ -16,32 +16,29 @@ bin_str = get_base64('background.jpg')
 
 st.markdown(f"""
 <style>
-    /* HIDE TOP HEADER ICONS (GITHUB, SHARE, ETC) */
-    header[data-testid="stHeader"] {{
-        background: transparent !important;
-    }}
-    header[data-testid="stHeader"] > div:first-child {{
-        display: none !important;
-    }}
-    
-    /* HIDE FOOTER AND DEPLOY BUTTON */
-    .stDeployButton, footer, [data-testid="stStatusWidget"] {{
+    /* 1. REMOVE THE COLLAPSE BUTTON (The '<<' thing) */
+    [data-testid="stSidebarCollapseButton"] {{
         display: none !important;
     }}
 
-    /* SIDEBAR STYLING & TOGGLE FIX */
+    /* 2. REMOVE TOP HEADER (GitHub, Share, etc.) */
+    [data-testid="stHeader"] {{
+        display: none !important;
+    }}
+    
+    /* 3. REMOVE FOOTER & 'MANAGE APP' */
+    footer, [data-testid="stFooter"], .stDeployButton {{
+        display: none !important;
+    }}
+
+    /* 4. SIDEBAR DESIGN */
     [data-testid="stSidebar"] {{
         background-color: rgba(10, 10, 10, 0.98) !important;
         border-right: 2px solid #FF6D00;
-    }}
-    
-    [data-testid="stSidebarCollapseButton"] {{
-        color: #FF6D00 !important;
-        background: rgba(0,0,0,0.5) !important;
-        border: 1px solid #FF6D00 !important;
+        min-width: 320px !important;
     }}
 
-    /* GLOBAL DESIGN */
+    /* 5. MAIN APP STYLING */
     .stApp {{
         background: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), 
                     url("data:image/jpeg;base64,{bin_str if bin_str else ''}");
@@ -52,9 +49,9 @@ st.markdown(f"""
     .main-title {{
         font-weight: 900; color: #FF6D00; text-align: center; font-size: 5rem;
         text-shadow: 0px 0px 30px rgba(255, 109, 0, 0.7);
+        margin-top: -60px;
     }}
 
-    /* BUTTONS */
     .stButton>button {{
         width: 100%; border-radius: 10px; border: 1px solid #FF6D00 !important;
         color: white !important; background: transparent; font-weight: 800;
@@ -66,7 +63,7 @@ st.markdown(f"""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. DATABASE & IRONCLAD LEGAL ---
+# --- 2. DATABASE & PROFESSIONAL LEGAL DOCS ---
 DB_FILE = "gobidas_db.json"
 def load_db():
     if os.path.exists(DB_FILE):
@@ -84,23 +81,25 @@ if "db" not in st.session_state:
 
 def show_legal():
     st.markdown("## 📜 OFFICIAL TERMS OF SERVICE & PRIVACY POLICY")
-    st.error("### **ARTICLE 1: COMPREHENSIVE BETA DISCLAIMER**")
+    
+    st.error("### **ARTICLE 1: BINDING AGREEMENT & BETA DISCLAIMER**")
     st.write("""
-    **1.1 Experimental Nature:** Gobidas is an experimental artificial intelligence interface. Users acknowledge that the software is provided 'as-is' and may contain bugs or functional defects. 
-    **1.2 Output Accuracy:** AI models are prone to 'hallucinations'—generating facts that are incorrect or nonsensical. The developer assumes zero responsibility for the truthfulness of any AI response.
-    **1.3 Availability:** The developer reserves the right to modify or terminate access at any time without prior notice.
+    **1.1 Access Acceptance:** By accessing 'Gobidas' (the 'Software'), you enter into a legally binding agreement with the developer. If you do not agree to these terms, you must terminate your session immediately.
+    **1.2 Experimental Software:** This Software is in a Beta phase. It is provided 'AS-IS' and 'AS-AVAILABLE'. The developer makes no warranties, expressed or implied, regarding system stability, data integrity, or output accuracy.
     """)
-    st.markdown("### **ARTICLE 2: LEGAL LIABILITY & INDEMNITY**")
+
+    st.markdown("### **ARTICLE 2: LIMITATION OF LIABILITY & INDEMNIFICATION**")
     st.write("""
-    **2.1 Third-Party Models:** Gobidas uses models from Meta (Llama) and services from Groq. Any harm caused by the logic of these models is the responsibility of the model creators, not the Gobidas UI developer.
-    **2.2 Total Indemnity:** By using this application, the user agrees to waive all rights to pursue legal action against the developer for any reason, including but not limited to data loss, offensive output, or system errors.
-    **2.3 No Professional Advice:** This AI is for entertainment and general information only. It is NOT a doctor, lawyer, or financial advisor. Use for life-critical decisions is strictly at your own risk.
+    **2.1 Third-Party Intelligence:** Gobidas utilizes Large Language Models (LLMs) provided by Meta and hosted via Groq Inc. The developer is a third-party interface creator and has no control over the generation logic.
+    **2.2 No Liability for Harm:** The developer shall not be held liable for any damages, including but not limited to financial loss, emotional distress, or legal complications arising from AI-generated responses.
+    **2.3 Indemnity:** The user agrees to indemnify and hold harmless the developer from any claims, suits, or legal fees resulting from the user's interaction with the Software.
     """)
-    st.markdown("### **ARTICLE 3: DATA PRIVACY & RETENTION**")
+
+    st.markdown("### **ARTICLE 3: DATA PRIVACY & SOVEREIGNTY**")
     st.write("""
-    **3.1 Data Sovereignty:** Your credentials and history are stored in a local JSON file. No data is shared with third-party advertisers or external entities.
-    **3.2 The 30-Day Purge:** All chat history is automatically deleted after 30 days of inactivity to protect your privacy and maintain system performance. This action is final and unrecoverable.
-    **3.3 Transmission:** Inputs are processed via secure API calls to Groq Cloud. While we use standard security measures, no digital system is 100% secure.
+    **3.1 Localized Storage:** To ensure user privacy, all credentials and chat logs are stored in a local JSON file on the host server. We do not use third-party tracking or advertising databases.
+    **3.2 Automated Purge Protocol:** To maintain system efficiency and user privacy, the system automatically executes a 30-day data retention policy. All data older than 30 days is permanently liquidated and cannot be recovered.
+    **3.3 Data Transit:** All data sent for inference (text/images) is transmitted via encrypted HTTPS protocols to Groq for processing.
     """)
 
 # --- 3. LOGIN / SIGN UP FLOW ---
@@ -108,10 +107,10 @@ if "user" not in st.session_state:
     st.markdown("<h1 class='main-title'>Gobidas</h1>", unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1, 1.8, 1])
     with c2:
-        mode = st.radio("SELECT MODE", ["LOG IN", "SIGN UP"], horizontal=True)
-        u = st.text_input("USERNAME")
-        p = st.text_input("PASSWORD", type="password")
-        agree = st.checkbox("I HAVE READ AND AGREE TO THE FULL TERMS AND PRIVACY POLICY")
+        mode = st.radio("CHOOSE ACCESS TYPE", ["LOG IN", "SIGN UP"], horizontal=True)
+        u = st.text_input("NAME / USERNAME")
+        p = st.text_input("SECURITY KEY / PASSWORD", type="password")
+        agree = st.checkbox("I EXPRESSLY AGREE TO THE ARTICLE 1, 2, AND 3 LEGAL TERMS")
         
         if st.button("ENTER", disabled=not agree):
             if mode == "LOG IN":
@@ -119,13 +118,13 @@ if "user" not in st.session_state:
                     st.session_state.user = u
                     st.session_state.messages = []
                     st.rerun()
-                else: st.error("INVALID CREDENTIALS")
+                else: st.error("ACCESS DENIED: INVALID CREDENTIALS")
             else:
                 if u and p:
                     st.session_state.db["users"][u] = p
                     st.session_state.db["history"][u] = []
                     save_db(st.session_state.db)
-                    st.success("ACCOUNT CREATED! PLEASE LOG IN.")
+                    st.success("ACCOUNT REGISTERED. PROCEED TO LOG IN.")
         st.divider()
         with st.expander("VIEW FULL LEGAL DOCUMENTATION"): show_legal()
     st.stop()
@@ -133,15 +132,15 @@ if "user" not in st.session_state:
 # --- 4. SIDEBAR ---
 with st.sidebar:
     st.title(f"@{st.session_state.user}")
-    if st.button("➕ NEW SESSION"):
+    if st.button("➕ NEW CHAT SESSION"):
         st.session_state.messages = []
         st.session_state.active_idx = None
         st.rerun()
     
-    img_file = st.file_uploader("UPLOAD IMAGE", type=['png', 'jpg', 'jpeg'])
+    img_file = st.file_uploader("UPLOAD VISION INPUT", type=['png', 'jpg', 'jpeg'])
     
     st.divider()
-    st.write("### CHAT HISTORY")
+    st.write("### SAVED ARCHIVES")
     hist_list = st.session_state.db["history"].get(st.session_state.user, [])
     for i in range(len(hist_list)-1, -1, -1):
         chat = hist_list[i]
@@ -162,10 +161,10 @@ with st.sidebar:
                 st.rerun()
 
     st.divider()
-    if st.button("⚙️ SETTINGS"):
+    if st.button("⚙️ SYSTEM SETTINGS"):
         st.session_state.show_settings = not st.session_state.get("show_settings", False)
     if st.session_state.get("show_settings"):
-        if st.button("LOGOUT"):
+        if st.button("TERMINATE SESSION (LOGOUT)"):
             del st.session_state.user
             st.rerun()
         with st.expander("LEGAL"): show_legal()
@@ -177,7 +176,7 @@ st.markdown("<h1 class='main-title'>Gobidas</h1>", unsafe_allow_html=True)
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]): st.markdown(msg["content"])
 
-if prompt := st.chat_input("ASK GOBIDAS..."):
+if prompt := st.chat_input("COMMAND GOBIDAS..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
@@ -201,7 +200,7 @@ if prompt := st.chat_input("ASK GOBIDAS..."):
             st.markdown(ans)
             st.session_state.messages.append({"role": "assistant", "content": ans})
             
-            # Save Logic
+            # Auto-Save
             history = st.session_state.db["history"].get(st.session_state.user, [])
             chat_title = prompt[:22] + "..." if len(prompt) > 22 else prompt
             chat_entry = {"name": chat_title, "msgs": st.session_state.messages, "ts": time.time()}
@@ -211,4 +210,4 @@ if prompt := st.chat_input("ASK GOBIDAS..."):
                 history[st.session_state.active_idx] = chat_entry
             st.session_state.db["history"][st.session_state.user] = history
             save_db(st.session_state.db)
-        except Exception as e: st.error(f"ERROR: {e}")
+        except Exception as e: st.error(f"SYSTEM OVERLOAD: {e}")
