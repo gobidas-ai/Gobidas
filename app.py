@@ -17,36 +17,49 @@ bin_str = get_base64('background.jpg')
 
 st.markdown(f"""
 <style>
-    /* 1. HIDE GITHUB, SHARE, AND MANAGE APP */
-    [data-testid="stHeader"] {{ background: transparent !important; }}
-    .stDeployButton, footer, [data-testid="stStatusWidget"] {{ display: none !important; }}
+    /* 1. COMPLETELY WIPE THE TOP RIGHT ICONS (GITHUB, SHARE, ETC) */
+    [data-testid="stHeader"] {{
+        background: transparent !important;
+    }}
     
-    /* 2. BRING BACK AND STYLE THE COLLAPSE/OPEN BUTTON */
+    /* Target the specific container for top-right buttons */
+    header[data-testid="stHeader"] > div:nth-child(1) {{
+        display: none !important;
+    }}
+
+    .stDeployButton, footer, [data-testid="stStatusWidget"], .stActionButton {{
+        display: none !important;
+        visibility: hidden !important;
+    }}
+    
+    /* 2. STYLE THE SIDEBAR OPENER (KEEP THIS VISIBLE) */
     [data-testid="stSidebarCollapseButton"] {{
         visibility: visible !important;
         display: block !important;
         color: #FF6D00 !important;
-        background: rgba(0,0,0,0.6) !important;
-        border-radius: 50% !important;
-        border: 1px solid #FF6D00 !important;
-        z-index: 999999 !important;
+        background: rgba(0,0,0,0.7) !important;
+        border-radius: 8px !important;
+        border: 2px solid #FF6D00 !important;
+        margin: 10px !important;
     }}
 
-    /* 3. SIDEBAR STYLING */
+    /* 3. SIDEBAR DESIGN */
     [data-testid="stSidebar"] {{
         background-color: rgba(10, 10, 10, 0.98) !important;
         border-right: 2px solid #FF6D00;
     }}
 
-    /* 4. BACKGROUND & TEXT */
+    /* 4. APP BACKGROUND & TITLES */
     .stApp {{
         background: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), 
                     url("data:image/jpeg;base64,{bin_str if bin_str else ''}");
         background-size: cover;
+        background-attachment: fixed;
     }}
     .main-title {{
-        font-weight: 900; color: #FF6D00; text-align: center; font-size: 4.5rem;
-        text-shadow: 0px 0px 20px rgba(255, 109, 0, 0.5);
+        font-weight: 900; color: #FF6D00; text-align: center; font-size: 5rem;
+        text-shadow: 0px 0px 30px rgba(255, 109, 0, 0.7);
+        margin-top: -30px;
     }}
     .stButton>button {{
         width: 100%; border-radius: 10px; border: 1px solid #FF6D00 !important;
@@ -54,14 +67,38 @@ st.markdown(f"""
     }}
     .stButton>button:hover {{
         background: #FF6D00 !important; color: black !important;
+        box-shadow: 0px 0px 20px rgba(255, 109, 0, 0.5);
     }}
 </style>
 """, unsafe_allow_html=True)
 
-# JS to keep "Manage app" hidden without killing the sidebar
-components.html("<script>setInterval(()=>{window.parent.document.querySelectorAll('button').forEach(b=>{if(b.innerText.includes('Manage app'))b.parentElement.style.display='none'})},500)</script>", height=0)
+# --- 2. THE AGGRESSIVE CLEANER SCRIPT ---
+# This kills the GitHub and "Manage app" icons every 100ms
+components.html("""
+<script>
+    const cleanUI = () => {
+        const parentDoc = window.parent.document;
+        
+        // Kill the top right icon group (Github/Share/Menu)
+        const toolbar = parentDoc.querySelector('[data-testid="stHeader"] > div:nth-child(1)');
+        if (toolbar) toolbar.style.display = 'none';
 
-# --- 2. STORAGE & FULL TERMS ---
+        // Kill Manage App button
+        parentDoc.querySelectorAll('button').forEach(btn => {
+            if (btn.innerText.includes('Manage app')) {
+                btn.parentElement.style.display = 'none';
+            }
+        });
+        
+        // Hide footer/deploy just in case
+        const deploy = parentDoc.querySelector('.stDeployButton');
+        if (deploy) deploy.style.display = 'none';
+    };
+    setInterval(cleanUI, 100);
+</script>
+""", height=0)
+
+# --- 3. DATABASE & FULL LEGAL ---
 DB_FILE = "gobidas_db.json"
 def load_db():
     if os.path.exists(DB_FILE):
@@ -85,11 +122,15 @@ def show_legal():
     st.markdown("## Comprehensive Terms of Service & Privacy Agreement")
     st.error("### **BETA VERSION NOTICE**\nGobidas AI is in beta. Use at your own risk.")
     st.markdown("### 1. Limitation of Liability")
-    st.write("The developer is NOT responsible for AI output. Responsibility lies with Meta/Groq.")
+    st.write("""
+    **A. Third-Party Models:** Gobidas acts solely as a user interface for models like Meta (Llama) via Groq. 
+    The developer is NOT responsible for AI output.
+    **B. Indemnity:** By using this app, you agree to hold the developer harmless from any legal fees or claims.
+    """)
     st.markdown("### 2. Privacy Policy")
-    st.write("Credentials and logs are stored locally. All data purged after 30 days.")
+    st.write("Credentials and logs are stored locally. All data is automatically purged after 30 days.")
 
-# --- 3. LOGIN ---
+# --- 4. LOGIN SCREEN ---
 if "user" not in st.session_state:
     st.markdown("<h1 class='main-title'>Gobidas</h1>", unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1, 1.8, 1])
@@ -111,10 +152,10 @@ if "user" not in st.session_state:
                     st.session_state.db["history"][u] = []
                     save_db(st.session_state.db)
                     st.success("Account Created.")
-        with st.expander("Read Full Terms"): show_legal()
+        with st.expander("Full Legal Docs"): show_legal()
     st.stop()
 
-# --- 4. SIDEBAR (FUNCTIONAL) ---
+# --- 5. SIDEBAR ---
 with st.sidebar:
     st.title(f"@{st.session_state.user}")
     if st.button("➕ New Chat"):
@@ -154,7 +195,7 @@ with st.sidebar:
             st.rerun()
         with st.expander("Terms"): show_legal()
 
-# --- 5. MAIN CHAT ---
+# --- 6. CHAT ---
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 st.markdown("<h1 class='main-title'>Gobidas</h1>", unsafe_allow_html=True)
 
@@ -171,8 +212,7 @@ if prompt := st.chat_input("Ask Gobidas..."):
         try:
             if img_file:
                 img = Image.open(img_file).convert("RGB")
-                img.thumbnail((800, 800))
-                buf = io.BytesIO()
+                img.thumbnail((800, 800)); buf = io.BytesIO()
                 img.save(buf, format="JPEG")
                 b64_str = base64.b64encode(buf.getvalue()).decode('utf-8')
                 res = client.chat.completions.create(
