@@ -2,8 +2,9 @@ import streamlit as st
 from groq import Groq
 import json, os, base64, io
 from PIL import Image
+import streamlit.components.v1 as components
 
-# --- 1. UI & TOTAL STEALTH STYLE ---
+# --- 1. UI & AGGRESSIVE STEALTH STYLE ---
 st.set_page_config(page_title="Gobidas Beta", layout="wide")
 
 def get_base64(file):
@@ -13,35 +14,25 @@ def get_base64(file):
 
 try:
     bin_str = get_base64('background.jpg')
+    # Aggressive CSS to hide everything
     st.markdown(f"""
     <style>
-    /* 1. HIDE ALL STREAMLIT DEFAULTS */
-    #MainMenu {{visibility: hidden;}}
-    footer {{visibility: hidden;}}
-    header {{visibility: hidden;}}
+    /* HIDE TOP NAV, MENU, GITHUB, AND DEPLOY BUTTONS */
+    header, [data-testid="stHeader"] {{ visibility: hidden !important; display: none !important; }}
+    #MainMenu {{ visibility: hidden !important; }}
+    .stDeployButton {{ display: none !important; }}
+    [data-testid="stToolbar"] {{ display: none !important; }}
     
-    /* 2. REMOVE TOP TOOLBAR & GITHUB ICONS */
-    [data-testid="stToolbar"] {{display: none !important;}}
-    [data-testid="stDecoration"] {{display: none !important;}}
-    .stDeployButton {{display:none !important;}}
-
-    /* 3. AGGRESSIVE HIDE FOR "MANAGE APP" & CONNECTION STATUS */
-    [data-testid="stStatusWidget"] {{display: none !important;}}
-    [data-testid="stManageAppButton"] {{display: none !important;}}
-    .stAppDeployButton {{display: none !important;}}
-    footer {{display: none !important;}}
+    /* HIDE BOTTOM "MANAGE APP" AND STATUS BAR */
+    footer {{ visibility: hidden !important; display: none !important; }}
+    [data-testid="stStatusWidget"] {{ display: none !important; }}
+    [data-testid="stManageAppButton"] {{ display: none !important; }}
     
-    /* This targets the specific bottom-right floating container */
-    div[data-testid="stAppViewBlockContainer"] + div {{
-        display: none !important;
-    }}
+    /* TARGET FLOATING OVERLAYS (MANAGE APP WRAPPERS) */
+    .viewerBadge_container__1QS13 {{ display: none !important; }}
+    div[class^="viewerBadge"] {{ display: none !important; }}
     
-    /* Extra layer for the host-inserted manage button */
-    iframe[title="manage-app"] {{
-        display: none !important;
-    }}
-
-    /* 4. DESIGN & GLOW */
+    /* CUSTOM INTERFACE DESIGN */
     .stApp {{
         background: linear-gradient(rgba(0,0,0,0.65), rgba(0,0,0,0.85)), 
                     url("data:image/jpeg;base64,{bin_str}");
@@ -49,13 +40,11 @@ try:
         background-position: center;
         background-attachment: fixed;
     }}
-
     [data-testid="stSidebar"] {{
         background: rgba(0, 0, 0, 0.9) !important;
         backdrop-filter: blur(25px);
         border-right: 2px solid #FF6D00;
     }}
-
     .main-title {{
         font-weight: 900;
         color: #FF6D00;
@@ -63,7 +52,6 @@ try:
         font-size: 5rem;
         text-shadow: 0px 0px 25px rgba(255, 109, 0, 0.6);
     }}
-
     .stButton>button {{
         width: 100%;
         border-radius: 12px;
@@ -73,13 +61,11 @@ try:
         font-weight: 600;
         transition: 0.3s all ease-in-out;
     }}
-
     .stButton>button:hover {{
         background: #FF6D00 !important;
         box-shadow: 0px 0px 30px rgba(255, 109, 0, 0.9);
         color: black !important;
     }}
-
     .stChatMessage {{
         background: rgba(255, 255, 255, 0.07) !important;
         backdrop-filter: blur(15px);
@@ -88,6 +74,23 @@ try:
     }}
     </style>
     """, unsafe_allow_html=True)
+
+    # JavaScript to kill the "Manage App" button if it's in an iframe or shadow root
+    components.html("""
+        <script>
+        const observer = new MutationObserver((mutations) => {
+            const buttons = window.parent.document.querySelectorAll('button');
+            buttons.forEach(btn => {
+                if (btn.innerText.includes('Manage app')) {
+                    btn.parentElement.style.display = 'none';
+                }
+            });
+            const toolbars = window.parent.document.querySelectorAll('[data-testid="stToolbar"]');
+            toolbars.forEach(t => t.style.display = 'none');
+        });
+        observer.observe(window.parent.document.body, { childList: true, subtree: true });
+        </script>
+    """, height=0)
 except:
     st.error("Missing background.jpg")
 
@@ -172,7 +175,7 @@ if prompt := st.chat_input("Ask Gobidas..."):
                 img.save(buf, format="JPEG")
                 b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
                 
-                # Using Llama 4 Scout for Vision
+                # --- ACTUAL WORKING VISION MODEL (NOT 3.2) ---
                 res = client.chat.completions.create(
                     model="meta-llama/llama-4-scout-17b-16e-instruct",
                     messages=[{"role": "user", "content": [
@@ -204,3 +207,4 @@ if prompt := st.chat_input("Ask Gobidas..."):
             
         except Exception as e:
             st.error(f"Error: {e}")
+            
