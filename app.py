@@ -4,7 +4,7 @@ import json, os, base64, io
 from PIL import Image
 
 # --- 1. UI & GLOW STYLE ---
-st.set_page_config(page_title="GOBIDAS BETA", layout="wide")
+st.set_page_config(page_title="gobidas beta", layout="wide")
 
 def get_base64(file):
     with open(file, 'rb') as f:
@@ -16,14 +16,14 @@ try:
     st.markdown(f"""
     <style>
     .stApp {{
-        background: linear-gradient(rgba(0,0,0,0.65), rgba(0,0,0,0.7)), 
+        background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.8)), 
                     url("data:image/jpeg;base64,{bin_str}");
         background-size: cover;
         background-position: center;
         background-attachment: fixed;
     }}
     [data-testid="stSidebar"] {{
-        background: rgba(0, 0, 0, 0.8) !important;
+        background: rgba(0, 0, 0, 0.85) !important;
         backdrop-filter: blur(15px);
         border-right: 1px solid #FF6D00;
     }}
@@ -32,7 +32,7 @@ try:
         color: #FF6D00;
         text-align: center;
         font-size: 5rem;
-        text-shadow: 0px 0px 15px rgba(255, 109, 0, 0.5);
+        text-shadow: 0px 0px 20px rgba(255, 109, 0, 0.6);
     }}
     /* THE GLOW BUTTON EFFECT */
     .stButton>button {{
@@ -43,11 +43,11 @@ try:
         border: 2px solid #FF6D00 !important;
         font-weight: 500;
         transition: 0.3s all ease;
-        text-transform: lowercase; /* Matches your request */
+        text-transform: lowercase; 
     }}
     .stButton>button:hover {{
         background: #FF6D00 !important;
-        box-shadow: 0px 0px 25px rgba(255, 109, 0, 0.7);
+        box-shadow: 0px 0px 30px rgba(255, 109, 0, 0.8);
         color: black !important;
     }}
     .stChatMessage {{
@@ -102,7 +102,7 @@ if "user" not in st.session_state:
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 with st.sidebar:
-    st.markdown(f"### welcome, {st.session_state.user}")
+    st.markdown(f"### hi, {st.session_state.user}")
     if st.button("new chat"):
         st.session_state.messages = []
         st.session_state.active_idx = None
@@ -115,7 +115,6 @@ with st.sidebar:
     st.write("history")
     user_logs = st.session_state.db["history"].get(st.session_state.user, [])
     for i, log in enumerate(user_logs):
-        # Uses the summary name instead of "Chat 1"
         chat_label = log.get("name", f"chat {i+1}")
         if st.button(f" {chat_label}", key=f"h_{i}"):
             st.session_state.messages = log.get("msgs", [])
@@ -143,9 +142,9 @@ if prompt := st.chat_input("type something..."):
                 img.save(buf, format="JPEG")
                 b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
                 
-                # FIXED MODEL NAME HERE
+                # USING THE POWERFUL 90B VISION MODEL
                 res = client.chat.completions.create(
-                    model="llama-3.2-11b-vision-instant",
+                    model="llama-3.2-90b-vision-preview",
                     messages=[{"role": "user", "content": [
                         {"type": "text", "text": prompt},
                         {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
@@ -161,12 +160,11 @@ if prompt := st.chat_input("type something..."):
             st.markdown(ans)
             st.session_state.messages.append({"role": "assistant", "content": ans})
             
-            # SAVING WITH SUMMARY
+            # SAVING WITH USER PROMPT SUMMARY
             hist = st.session_state.db["history"].get(st.session_state.user, [])
             if st.session_state.get("active_idx") is None:
-                # Take first 25 chars of your prompt as the summary name
-                summary = prompt[:25] + "..." if len(prompt) > 25 else prompt
-                hist.append({"name": summary, "msgs": st.session_state.messages})
+                summary = (prompt[:30] + '..') if len(prompt) > 30 else prompt
+                hist.append({"name": summary.lower(), "msgs": st.session_state.messages})
                 st.session_state.db["history"][st.session_state.user] = hist
                 st.session_state.active_idx = len(hist) - 1
             else:
