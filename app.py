@@ -13,7 +13,7 @@ def get_base64(file):
 
 # Tries to load your background.png
 try:
-    bin_str = get_base64('background.png')
+    bin_str = get_base64('background.jpg')
     st.markdown(f"""
     <style>
     .stApp {{
@@ -43,7 +43,7 @@ try:
     </style>
     """, unsafe_allow_html=True)
 except FileNotFoundError:
-    st.error("MISSING FILE: Upload 'background.png' to your GitHub repo!")
+    st.error("MISSING FILE: Upload 'background.jpg' to your GitHub repo!")
 
 # --- 2. STORAGE ---
 DB_FILE = "gobidas_db.json"
