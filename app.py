@@ -3,7 +3,7 @@ from groq import Groq
 import json, os, base64, io
 from PIL import Image
 
-# --- 1. UI & MODERN CSS ---
+# --- 1. SETTINGS & STYLING ---
 st.set_page_config(page_title="GOBIDAS BETA", layout="wide")
 
 def get_base64(file):
@@ -11,62 +11,68 @@ def get_base64(file):
         data = f.read()
     return base64.b64encode(data).decode()
 
-# Pointing specifically to background.jpg
+# Using background.jpg
 try:
     bin_str = get_base64('background.jpg')
     st.markdown(f"""
     <style>
-    /* Main Background */
+    /* Background Image */
     .stApp {{
-        background: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.85)), 
+        background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), 
                     url("data:image/jpeg;base64,{bin_str}");
         background-size: cover;
-        background-position: center bottom;
+        background-position: center;
         background-attachment: fixed;
     }}
 
-    /* Sidebar - Ultra Dark Glass */
+    /* Modern Glass Sidebar */
     [data-testid="stSidebar"] {{
-        background: rgba(10, 10, 10, 0.85) !important;
+        background: rgba(0, 0, 0, 0.7) !important;
         backdrop-filter: blur(20px);
-        border-right: 1px solid rgba(255, 109, 0, 0.3);
+        border-right: 1px solid #FF6D00;
     }}
 
-    /* Title - Minimalist Modern */
+    /* Glow Title */
     .main-title {{
         font-family: 'Inter', sans-serif;
         font-weight: 900;
-        letter-spacing: -3px;
         color: #FF6D00;
-        text-shadow: 0px 4px 10px rgba(0,0,0,0.5);
         text-align: center;
-        font-size: 5.5rem;
-        margin-top: -50px;
+        font-size: 5rem;
+        text-shadow: 0px 0px 20px rgba(255, 109, 0, 0.6);
+        margin-bottom: 40px;
     }}
 
-    /* Chat Elements */
-    .stChatMessage {{
-        background: rgba(30, 30, 30, 0.6) !important;
-        backdrop-filter: blur(12px);
-        border-radius: 12px !important;
-        border: 1px solid rgba(255, 109, 0, 0.15) !important;
-        margin-bottom: 12px;
-    }}
-
-    /* Buttons */
+    /* Glow Buttons */
     .stButton>button {{
-        border-radius: 8px;
-        background: #FF6D00 !important;
+        width: 100%;
+        border-radius: 10px;
+        background: transparent !important;
         color: white !important;
-        border: none !important;
+        border: 2px solid #FF6D00 !important;
         font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 1px;
+        transition: 0.4s all ease;
+    }}
+
+    /* THE HOVER LIGHT-UP EFFECT */
+    .stButton>button:hover {{
+        background: #FF6D00 !important;
+        box-shadow: 0px 0px 30px rgba(255, 109, 0, 0.8);
+        color: black !important;
+        transform: scale(1.02);
+    }}
+
+    /* Clean Chat Boxes */
+    .stChatMessage {{
+        background: rgba(255, 255, 255, 0.03) !important;
+        backdrop-filter: blur(10px);
+        border-radius: 15px !important;
+        border: 1px solid rgba(255, 109, 0, 0.2) !important;
     }}
     </style>
     """, unsafe_allow_html=True)
-except FileNotFoundError:
-    st.error("MISSING FILE: Upload 'background.jpg' to your folder.")
+except:
+    st.error("Put 'background.jpg' in your folder!")
 
 # --- 2. DATA ---
 DB_FILE = "gobidas_db.json"
@@ -83,16 +89,16 @@ def save_db(data):
 if "db" not in st.session_state:
     st.session_state.db = load_db()
 
-# --- 3. LOGIN ---
+# --- 3. SIMPLE LOGIN ---
 if "user" not in st.session_state:
     st.markdown("<h1 class='main-title'>GOBIDAS</h1>", unsafe_allow_html=True)
-    col1, col2, col3 = st.columns([1,1.5,1])
-    with col2:
-        mode = st.radio("SELECT MODE", ["ACCESS", "REGISTER"], horizontal=True)
-        u = st.text_input("ID")
-        p = st.text_input("SECRET", type="password")
-        if st.button("EXECUTE"):
-            if mode == "ACCESS":
+    c1, c2, c3 = st.columns([1,1.5,1])
+    with c2:
+        mode = st.radio(" ", ["ENTER", "JOIN"], horizontal=True)
+        u = st.text_input("NAME")
+        p = st.text_input("PASSWORD", type="password")
+        if st.button("GO"):
+            if mode == "ENTER":
                 if u in st.session_state.db["users"] and st.session_state.db["users"][u] == p:
                     st.session_state.user = u
                     st.session_state.messages = []
@@ -102,27 +108,27 @@ if "user" not in st.session_state:
                     st.session_state.db["users"][u] = p
                     st.session_state.db["history"][u] = []
                     save_db(st.session_state.db)
-                    st.success("CREDENTIALS STORED.")
+                    st.success("SAVED! NOW CLICK ENTER.")
     st.stop()
 
-# --- 4. CORE ---
+# --- 4. CHAT INTERFACE ---
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 with st.sidebar:
-    st.title(f"USER: {st.session_state.user}")
-    if st.button("NEW ARCHIVE"):
+    st.title(f"Hi, {st.session_state.user}")
+    if st.button("NEW CHAT"):
         st.session_state.messages = []
         st.session_state.active_idx = None
         st.rerun()
     
     st.divider()
-    img_file = st.file_uploader("VISION UPLOAD", type=['png', 'jpg', 'jpeg'])
+    img_file = st.file_uploader("SEND IMAGE", type=['png', 'jpg', 'jpeg'])
     
     st.divider()
-    st.write("### RECENT LOGS")
+    st.write("PAST CHATS")
     logs = st.session_state.db["history"].get(st.session_state.user, [])
     for i, log in enumerate(logs):
-        if st.button(f"ENTRY {i+1}", key=f"log_{i}"):
+        if st.button(f"Chat {i+1}", key=f"chat_{i}"):
             st.session_state.messages = log.get("msgs", [])
             st.session_state.active_idx = i
             st.rerun()
@@ -132,7 +138,7 @@ st.markdown("<h1 class='main-title'>GOBIDAS</h1>", unsafe_allow_html=True)
 for m in st.session_state.messages:
     with st.chat_message(m["role"]): st.markdown(m["content"])
 
-if prompt := st.chat_input("Command..."):
+if prompt := st.chat_input("Ask anything..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
@@ -160,11 +166,11 @@ if prompt := st.chat_input("Command..."):
                     messages=st.session_state.messages
                 )
             
-            txt = res.choices[0].message.content
-            st.markdown(txt)
-            st.session_state.messages.append({"role": "assistant", "content": txt})
+            answer = res.choices[0].message.content
+            st.markdown(answer)
+            st.session_state.messages.append({"role": "assistant", "content": answer})
             
-            # Auto-save
+            # Save progress
             h = st.session_state.db["history"].get(st.session_state.user, [])
             if st.session_state.get("active_idx") is None:
                 h.append({"name": prompt[:20], "msgs": st.session_state.messages})
@@ -175,4 +181,4 @@ if prompt := st.chat_input("Command..."):
                 st.session_state.db["history"][st.session_state.user][idx]["msgs"] = st.session_state.messages
             save_db(st.session_state.db)
         except Exception as e:
-            st.error(f"SYSTEM ERROR: {e}")
+            st.error(f"Error: {e}")
