@@ -4,7 +4,7 @@ import json, os, base64, io, time
 from PIL import Image
 import streamlit.components.v1 as components
 
-# --- 1. CONFIG & ABSOLUTE STEALTH CSS ---
+# --- 1. CONFIG & RE-ENABLED SIDEBAR ---
 st.set_page_config(page_title="Gobidas Beta", layout="wide", initial_sidebar_state="expanded")
 
 def get_base64(file):
@@ -17,93 +17,51 @@ bin_str = get_base64('background.jpg')
 
 st.markdown(f"""
 <style>
-    /* 1. NUCLEAR OPTION TO HIDE HEADER & FOOTER */
-    header, [data-testid="stHeader"], [data-testid="stToolbar"], .stDeployButton {{
-        display: none !important;
-        visibility: hidden !important;
-        height: 0px !important;
-    }}
+    /* 1. HIDE GITHUB, SHARE, AND MANAGE APP */
+    [data-testid="stHeader"] {{ background: transparent !important; }}
+    .stDeployButton, footer, [data-testid="stStatusWidget"] {{ display: none !important; }}
     
-    footer, [data-testid="stFooter"], [data-testid="stStatusWidget"] {{
-        display: none !important;
-        visibility: hidden !important;
-    }}
-
-    /* Specific fix for the 'Manage app' button in the bottom right */
-    button[title="Manage app"], [data-testid="stManageAppButton"] {{
-        display: none !important;
-    }}
-
-    /* 2. HIDE SIDEBAR COLLAPSE BUTTON */
+    /* 2. BRING BACK AND STYLE THE COLLAPSE/OPEN BUTTON */
     [data-testid="stSidebarCollapseButton"] {{
-        display: none !important;
+        visibility: visible !important;
+        display: block !important;
+        color: #FF6D00 !important;
+        background: rgba(0,0,0,0.6) !important;
+        border-radius: 50% !important;
+        border: 1px solid #FF6D00 !important;
+        z-index: 999999 !important;
     }}
 
-    /* 3. LOCK SIDEBAR WIDTH */
-    section[data-testid="stSidebar"] {{
-        width: 320px !important;
-        min-width: 320px !important;
+    /* 3. SIDEBAR STYLING */
+    [data-testid="stSidebar"] {{
         background-color: rgba(10, 10, 10, 0.98) !important;
-        border-right: 2px solid #FF6D00 !important;
+        border-right: 2px solid #FF6D00;
     }}
 
-    /* 4. MAIN APP BACKGROUND & TITLES */
+    /* 4. BACKGROUND & TEXT */
     .stApp {{
         background: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), 
                     url("data:image/jpeg;base64,{bin_str if bin_str else ''}");
         background-size: cover;
-        background-attachment: fixed;
     }}
-    
     .main-title {{
-        font-weight: 900; 
-        color: #FF6D00; 
-        text-align: center; 
-        font-size: 5rem;
-        text-shadow: 0px 0px 25px rgba(255, 109, 0, 0.6);
-        margin-top: -50px; /* Pull up since header is gone */
+        font-weight: 900; color: #FF6D00; text-align: center; font-size: 4.5rem;
+        text-shadow: 0px 0px 20px rgba(255, 109, 0, 0.5);
     }}
-
-    /* 5. BUTTON & INPUT STYLING */
     .stButton>button {{
         width: 100%; border-radius: 10px; border: 1px solid #FF6D00 !important;
         color: white !important; background: transparent; font-weight: bold;
     }}
     .stButton>button:hover {{
         background: #FF6D00 !important; color: black !important;
-        box-shadow: 0px 0px 15px rgba(255, 109, 0, 0.4);
-    }}
-    
-    /* Make chat input look cleaner */
-    [data-testid="stChatInput"] {{
-        border: 1px solid rgba(255, 109, 0, 0.3) !important;
-        border-radius: 15px !important;
     }}
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. JAVASCRIPT REINFORCEMENT ---
-# This script runs every half second to delete the 'Manage app' element if it spawns
-components.html("""
-<script>
-    const hideExtra = () => {
-        const selectors = [
-            'button[title="Manage app"]',
-            '[data-testid="stManageAppButton"]',
-            'header',
-            '.stDeployButton',
-            'footer'
-        ];
-        selectors.forEach(s => {
-            const el = window.parent.document.querySelector(s);
-            if (el) el.style.display = 'none';
-        });
-    };
-    setInterval(hideExtra, 500);
-</script>
-""", height=0)
+# JS to keep "Manage app" hidden without killing the sidebar
+components.html("<script>setInterval(()=>{window.parent.document.querySelectorAll('button').forEach(b=>{if(b.innerText.includes('Manage app'))b.parentElement.style.display='none'})},500)</script>", height=0)
 
-# --- 3. DATABASE & LEGAL ---
+# --- 2. STORAGE & FULL TERMS ---
 DB_FILE = "gobidas_db.json"
 def load_db():
     if os.path.exists(DB_FILE):
@@ -125,13 +83,13 @@ if "db" not in st.session_state:
 
 def show_legal():
     st.markdown("## Comprehensive Terms of Service & Privacy Agreement")
-    st.error("### **BETA VERSION NOTICE**\nGobidas Artificial Intelligence is in a Beta testing phase. Users acknowledge that the Software is provided 'as-is'.")
+    st.error("### **BETA VERSION NOTICE**\nGobidas AI is in beta. Use at your own risk.")
     st.markdown("### 1. Limitation of Liability")
-    st.write("Gobidas acts as an interface for third-party LLMs (Meta/Groq). The developer is NOT responsible for AI-generated output.")
+    st.write("The developer is NOT responsible for AI output. Responsibility lies with Meta/Groq.")
     st.markdown("### 2. Privacy Policy")
-    st.write("Credentials and chat logs are stored in a local JSON file. All entries are purged after 30 days of inactivity.")
+    st.write("Credentials and logs are stored locally. All data purged after 30 days.")
 
-# --- 4. LOGIN FLOW ---
+# --- 3. LOGIN ---
 if "user" not in st.session_state:
     st.markdown("<h1 class='main-title'>Gobidas</h1>", unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1, 1.8, 1])
@@ -139,46 +97,41 @@ if "user" not in st.session_state:
         mode = st.radio(" ", ["Log In", "Sign Up"], horizontal=True)
         u = st.text_input("Name")
         p = st.text_input("Password", type="password")
-        agree = st.checkbox("I agree to the 30-day retention policy and liability terms")
-        
-        if st.button("Access System", disabled=not agree):
+        agree = st.checkbox("I agree to the 30-day retention and liability terms")
+        if st.button("Access Gobidas", disabled=not agree):
             if mode == "Log In":
                 if u in st.session_state.db["users"] and st.session_state.db["users"][u] == p:
                     st.session_state.user = u
                     st.session_state.messages = []
                     st.rerun()
-                else: st.error("Authentication Failed.")
+                else: st.error("Login Failed.")
             else:
                 if u and p:
                     st.session_state.db["users"][u] = p
                     st.session_state.db["history"][u] = []
                     save_db(st.session_state.db)
-                    st.success("Account created successfully.")
-        
-        with st.expander("Full Legal Documentation"):
-            show_legal()
+                    st.success("Account Created.")
+        with st.expander("Read Full Terms"): show_legal()
     st.stop()
 
-# --- 5. SIDEBAR (STABILIZED) ---
+# --- 4. SIDEBAR (FUNCTIONAL) ---
 with st.sidebar:
     st.title(f"@{st.session_state.user}")
-    
-    if st.button("➕ New Session"):
+    if st.button("➕ New Chat"):
         st.session_state.messages = []
         st.session_state.active_idx = None
         st.rerun()
     
-    img_file = st.file_uploader("Vision Input", type=['png', 'jpg', 'jpeg'])
+    img_file = st.file_uploader("Upload Image", type=['png', 'jpg', 'jpeg'])
     
     st.divider()
-    st.write("### Chat Archives")
+    st.write("### History")
     hist_list = st.session_state.db["history"].get(st.session_state.user, [])
-    
     for i in range(len(hist_list)-1, -1, -1):
         chat = hist_list[i]
         c_chat, c_del = st.columns([0.8, 0.2])
         with c_chat:
-            if st.button(chat.get('name', 'Log'), key=f"open_{i}"):
+            if st.button(chat.get('name', 'Chat'), key=f"open_{i}"):
                 st.session_state.messages = chat.get("msgs", [])
                 st.session_state.active_idx = i
                 st.rerun()
@@ -193,24 +146,22 @@ with st.sidebar:
                 st.rerun()
 
     st.divider()
-    if st.button("⚙️ Control Panel"):
+    if st.button("⚙️ Settings"):
         st.session_state.show_settings = not st.session_state.get("show_settings", False)
-    
     if st.session_state.get("show_settings"):
-        if st.button("Terminate Session (Logout)"):
+        if st.button("Logout"):
             del st.session_state.user
             st.rerun()
-        with st.expander("Legal & Privacy"):
-            show_legal()
+        with st.expander("Terms"): show_legal()
 
-# --- 6. CHAT INTERFACE ---
+# --- 5. MAIN CHAT ---
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 st.markdown("<h1 class='main-title'>Gobidas</h1>", unsafe_allow_html=True)
 
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]): st.markdown(msg["content"])
 
-if prompt := st.chat_input("Command input..."):
+if prompt := st.chat_input("Ask Gobidas..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
@@ -224,37 +175,25 @@ if prompt := st.chat_input("Command input..."):
                 buf = io.BytesIO()
                 img.save(buf, format="JPEG")
                 b64_str = base64.b64encode(buf.getvalue()).decode('utf-8')
-                
                 res = client.chat.completions.create(
                     model="meta-llama/llama-4-scout-17b-16e-instruct",
-                    messages=[{"role": "user", "content": [
-                        {"type": "text", "text": prompt},
-                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64_str}"}}
-                    ]}]
+                    messages=[{"role": "user", "content": [{"type": "text", "text": prompt}, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64_str}"}}]}]
                 )
             else:
-                res = client.chat.completions.create(
-                    model="llama-3.3-70b-versatile", 
-                    messages=st.session_state.messages
-                )
+                res = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=st.session_state.messages)
             
             ans = res.choices[0].message.content
             st.markdown(ans)
             st.session_state.messages.append({"role": "assistant", "content": ans})
             
-            # Save Logic
+            # Save
             history = st.session_state.db["history"].get(st.session_state.user, [])
             chat_title = prompt[:20] + "..." if len(prompt) > 20 else prompt
             chat_entry = {"name": chat_title, "msgs": st.session_state.messages, "ts": time.time()}
-            
             if st.session_state.get("active_idx") is None:
-                history.append(chat_entry)
-                st.session_state.active_idx = len(history) - 1
+                history.append(chat_entry); st.session_state.active_idx = len(history) - 1
             else:
                 history[st.session_state.active_idx] = chat_entry
-            
             st.session_state.db["history"][st.session_state.user] = history
             save_db(st.session_state.db)
-            
-        except Exception as e:
-            st.error(f"System Overload: {e}")
+        except Exception as e: st.error(f"Error: {e}")
