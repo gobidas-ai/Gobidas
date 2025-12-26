@@ -3,7 +3,7 @@ from groq import Groq
 import json, os, base64, io, time
 from PIL import Image
 
-# --- 1. CONFIG & INVISIBLE UI ---
+# --- 1. CONFIG & REFINED UI ---
 st.set_page_config(page_title="Gobidas Beta", layout="wide", initial_sidebar_state="expanded")
 
 def get_base64(file):
@@ -16,24 +16,24 @@ bin_str = get_base64('background.jpg')
 
 st.markdown(f"""
 <style>
-    /* 1. MAKE COLLAPSE BUTTON INVISIBLE BUT FUNCTIONAL */
-    [data-testid="stSidebarCollapseButton"] {{
-        opacity: 0 !important;
-        height: 40px !important;
-        width: 40px !important;
-        position: fixed !important;
-        top: 10px !important;
-        left: 10px !important;
-        z-index: 999999 !important;
-        cursor: pointer !important;
-    }}
-
-    /* 2. COMPLETELY HIDE TOP HEADER ICONS */
+    /* 1. HIDE ALL TOP-RIGHT ICONS (GITHUB, SHARE, ETC.) */
     [data-testid="stHeader"] {{
         background: transparent !important;
     }}
     header[data-testid="stHeader"] > div:first-child {{
         display: none !important;
+    }}
+    
+    /* 2. BRING BACK & STYLE THE COLLAPSE BUTTON (The '<<' and '>>' button) */
+    [data-testid="stSidebarCollapseButton"] {{
+        visibility: visible !important;
+        display: block !important;
+        color: #FF6D00 !important;
+        background: rgba(0,0,0,0.8) !important;
+        border: 2px solid #FF6D00 !important;
+        border-radius: 8px !important;
+        z-index: 999999 !important;
+        opacity: 1 !important; /* Made visible again */
     }}
     
     /* 3. REMOVE FOOTER & DEPLOY BUTTON */
@@ -69,7 +69,6 @@ st.markdown(f"""
     }}
     .stButton>button:hover {{
         background: #FF6D00 !important; color: black !important;
-        box-shadow: 0px 0px 20px rgba(255, 109, 0, 0.4);
     }}
 </style>
 """, unsafe_allow_html=True)
