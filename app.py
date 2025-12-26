@@ -3,7 +3,7 @@ from groq import Groq
 import json, os, base64, io
 from PIL import Image
 
-# --- 1. UI & STYLING ---
+# --- 1. UI & STEALTH STYLE ---
 st.set_page_config(page_title="Gobidas Beta", layout="wide")
 
 def get_base64(file):
@@ -15,6 +15,16 @@ try:
     bin_str = get_base64('background.jpg')
     st.markdown(f"""
     <style>
+    /* HIDE STREAMLIT BRANDING & UI ELEMENTS */
+    #MainMenu {{visibility: hidden;}}
+    footer {{visibility: hidden;}}
+    header {{visibility: hidden;}}
+    .stDeployButton {{display:none;}}
+    [data-testid="stToolbar"] {{display: none !important;}}
+    [data-testid="stDecoration"] {{display: none !important;}}
+    [data-testid="stManageAppButton"] {{display: none !important;}}
+
+    /* Background */
     .stApp {{
         background: linear-gradient(rgba(0,0,0,0.65), rgba(0,0,0,0.85)), 
                     url("data:image/jpeg;base64,{bin_str}");
@@ -22,11 +32,15 @@ try:
         background-position: center;
         background-attachment: fixed;
     }}
+
+    /* Sidebar */
     [data-testid="stSidebar"] {{
         background: rgba(0, 0, 0, 0.9) !important;
         backdrop-filter: blur(25px);
         border-right: 2px solid #FF6D00;
     }}
+
+    /* Title */
     .main-title {{
         font-weight: 900;
         color: #FF6D00;
@@ -34,7 +48,8 @@ try:
         font-size: 5rem;
         text-shadow: 0px 0px 25px rgba(255, 109, 0, 0.6);
     }}
-    /* BUTTON HOVER GLOW */
+
+    /* Hover Glow Buttons */
     .stButton>button {{
         width: 100%;
         border-radius: 12px;
@@ -48,8 +63,9 @@ try:
         background: #FF6D00 !important;
         box-shadow: 0px 0px 30px rgba(255, 109, 0, 0.9);
         color: black !important;
-        transform: translateY(-2px);
     }}
+
+    /* Chat Bubbles */
     .stChatMessage {{
         background: rgba(255, 255, 255, 0.07) !important;
         backdrop-filter: blur(15px);
@@ -61,7 +77,7 @@ try:
 except:
     st.error("Missing background.jpg")
 
-# --- 2. DATA PERSISTENCE ---
+# --- 2. STORAGE ---
 DB_FILE = "gobidas_db.json"
 def load_db():
     if os.path.exists(DB_FILE):
@@ -76,12 +92,12 @@ def save_db(data):
 if "db" not in st.session_state:
     st.session_state.db = load_db()
 
-# --- 3. LOGIN / SIGN UP ---
+# --- 3. LOGIN ---
 if "user" not in st.session_state:
     st.markdown("<h1 class='main-title'>Gobidas</h1>", unsafe_allow_html=True)
-    col1, col2, col3 = st.columns([1, 1.5, 1])
-    with col2:
-        mode = st.radio("Select Action", ["Log In", "Sign Up"], horizontal=True)
+    c1, c2, c3 = st.columns([1, 1.5, 1])
+    with c2:
+        mode = st.radio(" ", ["Log In", "Sign Up"], horizontal=True)
         u = st.text_input("Name")
         p = st.text_input("Password", type="password")
         if st.button("Enter"):
@@ -90,17 +106,15 @@ if "user" not in st.session_state:
                     st.session_state.user = u
                     st.session_state.messages = []
                     st.rerun()
-                else:
-                    st.error("User not found or wrong password.")
             else:
                 if u and p:
                     st.session_state.db["users"][u] = p
                     st.session_state.db["history"][u] = []
                     save_db(st.session_state.db)
-                    st.success("Signed up! Now Log In.")
+                    st.success("Account created! Please Log In.")
     st.stop()
 
-# --- 4. SIDEBAR ---
+# --- 4. CORE ENGINE ---
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 with st.sidebar:
@@ -115,22 +129,21 @@ with st.sidebar:
     
     st.divider()
     st.write("History")
-    user_logs = st.session_state.db["history"].get(st.session_state.user, [])
-    for i, log in enumerate(user_logs):
-        label = log.get("name", f"Chat {i+1}")
-        if st.button(f" {label}", key=f"h_{i}"):
+    logs = st.session_state.db["history"].get(st.session_state.user, [])
+    for i, log in enumerate(logs):
+        name = log.get("name", f"Chat {i+1}")
+        if st.button(f" {name}", key=f"h_{i}"):
             st.session_state.messages = log.get("msgs", [])
             st.session_state.active_idx = i
             st.rerun()
 
-# --- 5. CHAT LOGIC ---
+# --- 5. CHAT ---
 st.markdown("<h1 class='main-title'>Gobidas</h1>", unsafe_allow_html=True)
 
 for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]): 
-        st.markdown(msg["content"])
+    with st.chat_message(msg["role"]): st.markdown(msg["content"])
 
-if prompt := st.chat_input("Ask Gobidas something..."):
+if prompt := st.chat_input("Ask Gobidas..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
@@ -145,7 +158,7 @@ if prompt := st.chat_input("Ask Gobidas something..."):
                 img.save(buf, format="JPEG")
                 b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
                 
-                # --- ACTUAL WORKING VISION MODEL ---
+                # Using Llama 4 Scout (Non-3.2 Vision Model)
                 res = client.chat.completions.create(
                     model="meta-llama/llama-4-scout-17b-16e-instruct",
                     messages=[{"role": "user", "content": [
@@ -154,7 +167,6 @@ if prompt := st.chat_input("Ask Gobidas something..."):
                     ]}]
                 )
             else:
-                # FASTEST STABLE TEXT MODEL
                 res = client.chat.completions.create(
                     model="llama-3.3-70b-versatile",
                     messages=st.session_state.messages
@@ -164,7 +176,7 @@ if prompt := st.chat_input("Ask Gobidas something..."):
             st.markdown(ans)
             st.session_state.messages.append({"role": "assistant", "content": ans})
             
-            # --- SAVE & SUMMARY ---
+            # Save History
             hist = st.session_state.db["history"].get(st.session_state.user, [])
             if st.session_state.get("active_idx") is None:
                 summary = (prompt[:30] + '...') if len(prompt) > 30 else prompt
