@@ -90,37 +90,37 @@ if "db" not in st.session_state:
     st.session_state.db = load_db()
 
 def show_legal():
-    st.markdown("## 📜 GOVERNANCE, PRIVACY & LEGAL PROTOCOLS")
+    st.markdown("## 📜 GOVERNANCE, PRIVACY & LEGAL PROTOCOLS (Privacy & Terms")
     
     st.error("### **ARTICLE I: USER ACKNOWLEDGMENT OF BETA STATUS**")
     st.write("""
-    **1.1 Development Phase:** Gobidas is currently in a pre-release Beta phase. By utilizing this interface, the user acknowledges that the software is provided without warranty of any kind. 
-    **1.2 Non-Deterministic Logic:** AI responses are generated via probabilistic models. Users must independently verify any information provided by the system before taking action.
+    **** Gobidas is currently in a pre-release Beta phase. By utilizing this interface, the user acknowledges that the software is provided without warranty of any kind. 
+    **** AI responses are generated via probabilistic models. Users must independently verify any information provided by the system before taking action.
     """)
 
     st.markdown("### **ARTICLE II: LIMITATION OF LIABILITY & INDEMNITY CLAUSE**")
     st.write("""
-    **2.1 Infrastructure Disclaimer:** The developer acts only as a provider of the Graphical User Interface (GUI). The underlying intelligence is provided by Meta (Llama) and processed by Groq Cloud. 
-    **2.2 Zero Liability:** The developer shall not be held responsible for any loss, injury, or legal dispute resulting from AI hallucinations, biased outputs, or data transmission errors.
-    **2.3 Absolute Indemnity:** The user agrees to fully indemnify and hold the developer harmless from any and all claims, including third-party legal actions, stemming from the user's activities within the app.
+    **** The developer acts only as a provider of the Graphical User Interface (GUI). The underlying intelligence is provided by Meta (Llama) and processed by Groq Cloud. 
+    **** The developer shall not be held responsible for any loss, injury, or legal dispute resulting from AI hallucinations, biased outputs, or data transmission errors.
+    **** The user agrees to fully indemnify and hold the developer harmless from any and all claims, including third-party legal actions, stemming from the user's activities within the app.
     """)
 
     st.markdown("### **ARTICLE III: DATA SOVEREIGNTY & PRIVACY PRESERVATION**")
     st.write("""
-    **3.1 Localized Data Architecture:** All user credentials and conversational logs are stored exclusively in a local JSON database on the hosting environment. No personal data is harvested for marketing or secondary monetization.
-    **3.2 Systematic Data Liquidation:** To ensure maximum security, the system enforces a strict 30-day (720-hour) data retention window. Histories exceeding this duration are automatically and permanently purged.
-    **3.3 Cryptographic Integrity:** All external communications with inference engines are secured via industry-standard TLS encryption.
+    **** All user credentials and conversational logs are stored exclusively in a local JSON database on the hosting environment. No personal data is harvested for marketing or secondary monetization.
+    **** To ensure maximum security, the system enforces a strict 30-day (720-hour) data retention window. Histories exceeding this duration are automatically and permanently purged.
+    **** All external communications with inference engines are secured via industry-standard TLS encryption.
     """)
 
 # --- 3. LOGIN / SIGN UP FLOW ---
 if "user" not in st.session_state:
-    st.markdown("<h1 class='main-title'>Gobidas</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 class='main-title'>Gobidas BETA</h1>", unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1, 1.8, 1])
     with c2:
         mode = st.radio("GATEWAY ACCESS", ["LOG IN", "SIGN UP"], horizontal=True)
-        u = st.text_input("IDENTIFIER / USERNAME")
-        p = st.text_input("PASSCODE", type="password")
-        agree = st.checkbox("I CONFIRM AGREEMENT TO ALL ARTICLES IN THE LEGAL PROTOCOL")
+        u = st.text_input("USERNAME")
+        p = st.text_input("PASSWORD", type="password")
+        agree = st.checkbox("I confirm agreement to the Privacy & Terms")
         
         if st.button("ENTER SYSTEM", disabled=not agree):
             if mode == "LOG IN":
@@ -142,15 +142,15 @@ if "user" not in st.session_state:
 # --- 4. SIDEBAR ---
 with st.sidebar:
     st.title(f"@{st.session_state.user}")
-    if st.button("➕ INITIATE NEW SESSION"):
+    if st.button("➕ New Chat"):
         st.session_state.messages = []
         st.session_state.active_idx = None
         st.rerun()
     
-    img_file = st.file_uploader("VISION CORE (IMAGE)", type=['png', 'jpg', 'jpeg'])
+    img_file = st.file_uploader("Add images:", type=['png', 'jpg', 'jpeg'])
     
     st.divider()
-    st.write("### ENCRYPTED ARCHIVES")
+    st.write("### Chats")
     hist_list = st.session_state.db["history"].get(st.session_state.user, [])
     for i in range(len(hist_list)-1, -1, -1):
         chat = hist_list[i]
@@ -171,13 +171,13 @@ with st.sidebar:
                 st.rerun()
 
     st.divider()
-    if st.button("⚙️ SYSTEM CONFIG"):
+    if st.button("⚙️ settings"):
         st.session_state.show_settings = not st.session_state.get("show_settings", False)
     if st.session_state.get("show_settings"):
-        if st.button("TERMINATE SESSION (LOGOUT)"):
+        if st.button("Log out"):
             del st.session_state.user
             st.rerun()
-        with st.expander("LEGAL"): show_legal()
+        with st.expander("Privacy & Terms"): show_legal()
 
 # --- 5. CHAT ENGINE ---
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
@@ -186,7 +186,7 @@ st.markdown("<h1 class='main-title'>Gobidas</h1>", unsafe_allow_html=True)
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]): st.markdown(msg["content"])
 
-if prompt := st.chat_input("TRANSMIT COMMAND..."):
+if prompt := st.chat_input("Ask Gobidas BETA"):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
