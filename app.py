@@ -1,10 +1,10 @@
 import streamlit as st
 from groq import Groq
-import json, os, base64, io
+import json, os, base64, io, time
 from PIL import Image
 import streamlit.components.v1 as components
 
-# --- 1. UI & AGGRESSIVE STEALTH STYLE ---
+# --- 1. UI & TOTAL STEALTH STYLE ---
 st.set_page_config(page_title="Gobidas Beta", layout="wide")
 
 def get_base64(file):
@@ -14,79 +14,47 @@ def get_base64(file):
 
 try:
     bin_str = get_base64('background.jpg')
-    # Aggressive CSS to hide everything
     st.markdown(f"""
     <style>
-    /* HIDE TOP NAV, MENU, GITHUB, AND DEPLOY BUTTONS */
-    header, [data-testid="stHeader"] {{ visibility: hidden !important; display: none !important; }}
-    #MainMenu {{ visibility: hidden !important; }}
-    .stDeployButton {{ display: none !important; }}
-    [data-testid="stToolbar"] {{ display: none !important; }}
-    
-    /* HIDE BOTTOM "MANAGE APP" AND STATUS BAR */
-    footer {{ visibility: hidden !important; display: none !important; }}
-    [data-testid="stStatusWidget"] {{ display: none !important; }}
-    [data-testid="stManageAppButton"] {{ display: none !important; }}
-    
-    /* TARGET FLOATING OVERLAYS (MANAGE APP WRAPPERS) */
-    .viewerBadge_container__1QS13 {{ display: none !important; }}
-    div[class^="viewerBadge"] {{ display: none !important; }}
-    
-    /* CUSTOM INTERFACE DESIGN */
+    header, [data-testid="stHeader"], .stDeployButton, [data-testid="stToolbar"], 
+    footer, [data-testid="stStatusWidget"], [data-testid="stManageAppButton"] {{
+        visibility: hidden !important; display: none !important;
+    }}
     .stApp {{
         background: linear-gradient(rgba(0,0,0,0.65), rgba(0,0,0,0.85)), 
                     url("data:image/jpeg;base64,{bin_str}");
-        background-size: cover;
-        background-position: center;
-        background-attachment: fixed;
+        background-size: cover; background-position: center; background-attachment: fixed;
     }}
     [data-testid="stSidebar"] {{
         background: rgba(0, 0, 0, 0.9) !important;
-        backdrop-filter: blur(25px);
-        border-right: 2px solid #FF6D00;
+        backdrop-filter: blur(25px); border-right: 2px solid #FF6D00;
     }}
     .main-title {{
-        font-weight: 900;
-        color: #FF6D00;
-        text-align: center;
-        font-size: 5rem;
+        font-weight: 900; color: #FF6D00; text-align: center; font-size: 5rem;
         text-shadow: 0px 0px 25px rgba(255, 109, 0, 0.6);
     }}
     .stButton>button {{
-        width: 100%;
-        border-radius: 12px;
-        background: transparent !important;
-        color: white !important;
-        border: 2px solid #FF6D00 !important;
-        font-weight: 600;
-        transition: 0.3s all ease-in-out;
+        width: 100%; border-radius: 12px; background: transparent !important;
+        color: white !important; border: 2px solid #FF6D00 !important;
+        font-weight: 600; transition: 0.3s all ease-in-out;
     }}
-    .stButton>button:hover {{
-        background: #FF6D00 !important;
-        box-shadow: 0px 0px 30px rgba(255, 109, 0, 0.9);
+    .stButton>button:hover:not(:disabled) {{
+        background: #FF6D00 !important; box-shadow: 0px 0px 30px rgba(255, 109, 0, 0.9);
         color: black !important;
     }}
     .stChatMessage {{
-        background: rgba(255, 255, 255, 0.07) !important;
-        backdrop-filter: blur(15px);
-        border-radius: 20px !important;
-        border: 1px solid rgba(255, 109, 0, 0.3) !important;
+        background: rgba(255, 255, 255, 0.07) !important; backdrop-filter: blur(15px);
+        border-radius: 20px !important; border: 1px solid rgba(255, 109, 0, 0.3) !important;
     }}
     </style>
     """, unsafe_allow_html=True)
 
-    # JavaScript to kill the "Manage App" button if it's in an iframe or shadow root
     components.html("""
         <script>
-        const observer = new MutationObserver((mutations) => {
-            const buttons = window.parent.document.querySelectorAll('button');
-            buttons.forEach(btn => {
-                if (btn.innerText.includes('Manage app')) {
-                    btn.parentElement.style.display = 'none';
-                }
+        const observer = new MutationObserver(() => {
+            window.parent.document.querySelectorAll('button').forEach(btn => {
+                if (btn.innerText.includes('Manage app')) btn.parentElement.style.display = 'none';
             });
-            const toolbars = window.parent.document.querySelectorAll('[data-testid="stToolbar"]');
-            toolbars.forEach(t => t.style.display = 'none');
         });
         observer.observe(window.parent.document.body, { childList: true, subtree: true });
         </script>
@@ -94,12 +62,23 @@ try:
 except:
     st.error("Missing background.jpg")
 
-# --- 2. STORAGE ---
+# --- 2. STORAGE & 30-DAY AUTO-DELETE ---
 DB_FILE = "gobidas_db.json"
+
 def load_db():
     if os.path.exists(DB_FILE):
         try:
-            with open(DB_FILE, "r") as f: return json.load(f)
+            with open(DB_FILE, "r") as f: 
+                data = json.load(f)
+                # Auto-delete logic: Remove chats older than 30 days (2592000 seconds)
+                now = time.time()
+                cutoff = 30 * 24 * 60 * 60
+                for user in data["history"]:
+                    data["history"][user] = [
+                        chat for chat in data["history"][user] 
+                        if (now - chat.get("timestamp", now)) < cutoff
+                    ]
+                return data
         except: pass
     return {"users": {}, "history": {}}
 
@@ -109,7 +88,14 @@ def save_db(data):
 if "db" not in st.session_state:
     st.session_state.db = load_db()
 
-# --- 3. LOGIN ---
+# --- 3. LEGAL CONTENT ---
+def show_legal_content():
+    st.markdown("## Terms of Service & Privacy Policy")
+    st.info("Last updated: December 2025")
+    st.write("**1. Disclaimer:** The developer is NOT responsible for AI-generated content. Liability for AI outputs lies with the model creators (Meta/Groq).")
+    st.write("**2. Privacy:** Data is stored locally for 30 days and then automatically deleted. We do not sell your data.")
+
+# --- 4. LOGIN & SIGN UP ---
 if "user" not in st.session_state:
     st.markdown("<h1 class='main-title'>Gobidas</h1>", unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1, 1.5, 1])
@@ -117,7 +103,12 @@ if "user" not in st.session_state:
         mode = st.radio(" ", ["Log In", "Sign Up"], horizontal=True)
         u = st.text_input("Name")
         p = st.text_input("Password", type="password")
-        if st.button("Enter"):
+        
+        st.markdown("<p style='text-align: center; font-size: 0.8rem; color: #bbb;'>By making an account or using our AI you are accepting our terms and privacy</p>", unsafe_allow_html=True)
+        
+        agree = st.checkbox("I agree to the Terms and Privacy Policy")
+        
+        if st.button("Enter", disabled=not agree):
             if mode == "Log In":
                 if u in st.session_state.db["users"] and st.session_state.db["users"][u] == p:
                     st.session_state.user = u
@@ -129,12 +120,33 @@ if "user" not in st.session_state:
                     st.session_state.db["history"][u] = []
                     save_db(st.session_state.db)
                     st.success("Account created! Please Log In.")
+        
+        if st.button("See our terms and privacy"):
+            st.session_state.show_legal_login = not st.session_state.get('show_legal_login', False)
+        
+        if st.session_state.get('show_legal_login'):
+            show_legal_content()
     st.stop()
 
-# --- 4. ENGINE ---
+# --- 5. SIDEBAR & SETTINGS ---
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
+if "show_settings" not in st.session_state: st.session_state.show_settings = False
+if "show_legal_sidebar" not in st.session_state: st.session_state.show_legal_sidebar = False
+
 with st.sidebar:
+    if st.button("⚙️"):
+        st.session_state.show_settings = not st.session_state.show_settings
+    
+    if st.session_state.show_settings:
+        if st.button("Privacy and Terms"):
+            st.session_state.show_legal_sidebar = not st.session_state.show_legal_sidebar
+        if st.session_state.show_legal_sidebar:
+            show_legal_content()
+        if st.button("Close Settings"):
+            st.session_state.show_settings = False
+            st.rerun()
+
     st.markdown(f"### Welcome, {st.session_state.user}")
     if st.button("New Chat"):
         st.session_state.messages = []
@@ -145,16 +157,15 @@ with st.sidebar:
     img_file = st.file_uploader("Upload Image", type=['png', 'jpg', 'jpeg'])
     
     st.divider()
-    st.write("History")
+    st.write("History (Deleted after 30 days)")
     logs = st.session_state.db["history"].get(st.session_state.user, [])
     for i, log in enumerate(logs):
-        name = log.get("name", f"Chat {i+1}")
-        if st.button(f" {name}", key=f"h_{i}"):
+        if st.button(f" {log.get('name', 'Chat')}", key=f"h_{i}"):
             st.session_state.messages = log.get("msgs", [])
             st.session_state.active_idx = i
             st.rerun()
 
-# --- 5. CHAT ---
+# --- 6. CHAT INTERFACE ---
 st.markdown("<h1 class='main-title'>Gobidas</h1>", unsafe_allow_html=True)
 
 for msg in st.session_state.messages:
@@ -175,7 +186,6 @@ if prompt := st.chat_input("Ask Gobidas..."):
                 img.save(buf, format="JPEG")
                 b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
                 
-                # --- ACTUAL WORKING VISION MODEL (NOT 3.2) ---
                 res = client.chat.completions.create(
                     model="meta-llama/llama-4-scout-17b-16e-instruct",
                     messages=[{"role": "user", "content": [
@@ -193,18 +203,17 @@ if prompt := st.chat_input("Ask Gobidas..."):
             st.markdown(ans)
             st.session_state.messages.append({"role": "assistant", "content": ans})
             
-            # Save History
+            # Save History with Timestamp
             hist = st.session_state.db["history"].get(st.session_state.user, [])
+            chat_data = {"name": prompt[:30], "msgs": st.session_state.messages, "timestamp": time.time()}
+            
             if st.session_state.get("active_idx") is None:
-                summary = (prompt[:30] + '...') if len(prompt) > 30 else prompt
-                hist.append({"name": summary, "msgs": st.session_state.messages})
+                hist.append(chat_data)
                 st.session_state.db["history"][st.session_state.user] = hist
                 st.session_state.active_idx = len(hist) - 1
             else:
-                idx = st.session_state.active_idx
-                st.session_state.db["history"][st.session_state.user][idx]["msgs"] = st.session_state.messages
+                st.session_state.db["history"][st.session_state.user][st.session_state.active_idx] = chat_data
             save_db(st.session_state.db)
             
         except Exception as e:
             st.error(f"Error: {e}")
-            
