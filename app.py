@@ -3,18 +3,35 @@ from groq import Groq
 import json, os, base64, io
 from PIL import Image
 
-# --- 1. UI & SKYSCRAPER BACKGROUND ---
+# --- 1. UI & YOUR EXACT PNG BACKGROUND ---
 st.set_page_config(page_title="GOBIDAS BETA", layout="wide")
+
+# Function to convert your local PNG to base64 for the CSS
+def get_base64_of_bin_file(bin_file):
+    with open(bin_file, 'rb') as f:
+        data = f.read()
+    return base64.b64encode(data).decode()
+
+# Look specifically for background.png
+try:
+    bin_str = get_base64_of_bin_file('background.png')
+    bg_img_style = f"""
+    <style>
+    .stApp {{
+        background-image: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), url("data:image/png;base64,{bin_str}");
+        background-size: cover;
+        background-position: center;
+        background-attachment: fixed;
+    }}
+    </style>
+    """
+    st.markdown(bg_img_style, unsafe_allow_html=True)
+except FileNotFoundError:
+    st.error("Error: 'background.png' not found. Make sure the file is in your folder!")
+    st.markdown("<style>.stApp {background-color: #0e1117;}</style>", unsafe_allow_html=True)
 
 st.markdown("""
     <style>
-    .stApp {
-        background: linear-gradient(rgba(0,0,0,0.85), rgba(0,0,0,0.85)), 
-        url('https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?auto=format&fit=crop&w=1920&q=80');
-        background-size: cover;
-        background-attachment: fixed;
-        color: white;
-    }
     [data-testid="stSidebar"] {
         background: rgba(10, 10, 10, 0.95) !important;
         border-right: 3px solid #FF6D00;
@@ -26,14 +43,13 @@ st.markdown("""
         -webkit-text-fill-color: transparent;
         text-align: center;
         font-size: 4.5rem;
-        letter-spacing: -2px;
     }
     .stChatMessage {
         background: rgba(25, 25, 25, 0.8) !important;
         backdrop-filter: blur(12px);
         border-radius: 18px !important;
         border: 1px solid rgba(255, 109, 0, 0.3) !important;
-        padding: 15px;
+        color: white !important;
     }
     .stButton>button {
         background: linear-gradient(90deg, #FF6D00, #FFAB40) !important;
@@ -41,7 +57,6 @@ st.markdown("""
         border-radius: 10px;
         font-weight: bold;
         border: none;
-        height: 3em;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -49,10 +64,11 @@ st.markdown("""
 # --- 2. DATABASE ---
 DB_FILE = "gobidas_db.json"
 def load_db():
-    try:
-        if os.path.exists(DB_FILE):
-            with open(DB_FILE, "r") as f: return json.load(f)
-    except: pass
+    if os.path.exists(DB_FILE):
+        try:
+            with open(DB_FILE, "r") as f:
+                return json.load(f)
+        except: pass
     return {"users": {}, "history": {}}
 
 def save_db(data):
@@ -99,7 +115,8 @@ with st.sidebar:
     st.write("📂 **LOGS**")
     user_chats = st.session_state.db["history"].get(st.session_state.user, [])
     for i, chat in enumerate(user_chats):
-        if st.button(f"🗨️ {chat.get('name', 'Log '+str(i))}", key=f"hist_{i}"):
+        name = chat.get("name", f"Log {i}")
+        if st.button(f"🗨️ {name}", key=f"h_{i}"):
             st.session_state.messages = chat.get("msgs", [])
             st.session_state.active_idx = i
             st.rerun()
@@ -119,22 +136,22 @@ if prompt := st.chat_input("Input Command..."):
     with st.chat_message("assistant"):
         try:
             if img_file:
-                # Vision Handling
+                # Prepare image for AI
                 img = Image.open(img_file).convert("RGB")
                 img.thumbnail((800, 800))
                 buf = io.BytesIO()
                 img.save(buf, format="JPEG")
                 b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
                 
+                # Using current stable vision model
                 res = client.chat.completions.create(
-                    model="llama-3.2-90b-vision-preview",
+                    model="llama-3.2-11b-vision-preview",
                     messages=[{"role": "user", "content": [
                         {"type": "text", "text": prompt},
                         {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
                     ]}]
                 )
             else:
-                # Text Handling
                 res = client.chat.completions.create(
                     model="llama-3.3-70b-versatile",
                     messages=st.session_state.messages
@@ -144,7 +161,7 @@ if prompt := st.chat_input("Input Command..."):
             st.markdown(ans)
             st.session_state.messages.append({"role": "assistant", "content": ans})
             
-            # History Management
+            # Save to History Database
             user_hist = st.session_state.db["history"].get(st.session_state.user, [])
             if st.session_state.get("active_idx") is None:
                 user_hist.append({"name": prompt[:20], "msgs": st.session_state.messages})
@@ -153,7 +170,7 @@ if prompt := st.chat_input("Input Command..."):
             else:
                 idx = st.session_state.active_idx
                 st.session_state.db["history"][st.session_state.user][idx]["msgs"] = st.session_state.messages
-            
             save_db(st.session_state.db)
+
         except Exception as e:
             st.error(f"ENGINE ERROR: {e}")
