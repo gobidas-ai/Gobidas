@@ -4,7 +4,7 @@ import json, os, base64, io, time
 from PIL import Image
 import streamlit.components.v1 as components
 
-# --- 1. UI & TOTAL STEALTH STYLE ---
+# --- 1. UI & REFINED STEALTH STYLE ---
 st.set_page_config(page_title="Gobidas Beta", layout="wide")
 
 def get_base64(file):
@@ -16,10 +16,22 @@ try:
     bin_str = get_base64('background.jpg')
     st.markdown(f"""
     <style>
-    header, [data-testid="stHeader"], .stDeployButton, [data-testid="stToolbar"], 
-    footer, [data-testid="stStatusWidget"], [data-testid="stManageAppButton"] {{
+    /* HIDE BRANDING BUT KEEP SIDEBAR TOGGLE */
+    [data-testid="stHeader"] {{ background: transparent !important; }}
+    .stDeployButton, [data-testid="stToolbar"], footer, 
+    [data-testid="stStatusWidget"], [data-testid="stManageAppButton"] {{
         visibility: hidden !important; display: none !important;
     }}
+    
+    /* Ensure the sidebar open/close button stays visible and orange */
+    [data-testid="stSidebarCollapseButton"] {{
+        visibility: visible !important;
+        display: block !important;
+        color: #FF6D00 !important;
+        background: rgba(0,0,0,0.5) !important;
+        border-radius: 50%;
+    }}
+
     .stApp {{
         background: linear-gradient(rgba(0,0,0,0.65), rgba(0,0,0,0.85)), 
                     url("data:image/jpeg;base64,{bin_str}");
@@ -71,7 +83,7 @@ def load_db():
                 data = json.load(f)
                 now = time.time()
                 cutoff = 30 * 24 * 60 * 60
-                for user in data["history"]:
+                for user in data.get("history", {}):
                     data["history"][user] = [c for c in data["history"][user] if (now - c.get("timestamp", now)) < cutoff]
                 return data
         except: pass
@@ -92,22 +104,25 @@ def show_legal_content():
     st.markdown("### 2. Privacy")
     st.write("Data is stored locally for 30 days and then auto-deleted. We do not sell your data.")
 
-# --- 4. SIDEBAR (ALWAYS ACTIVE) ---
+# --- 4. SIDEBAR ---
 if "show_settings" not in st.session_state: st.session_state.show_settings = False
 
 with st.sidebar:
-    if st.button("⚙️"):
+    if st.button("⚙️ Settings"):
         st.session_state.show_settings = not st.session_state.show_settings
     
     if st.session_state.show_settings:
-        st.markdown("### Settings")
         with st.expander("Privacy and Terms"):
             show_legal_content()
+        if "user" in st.session_state:
+            if st.button("Logout"):
+                del st.session_state.user
+                st.session_state.show_settings = False
+                st.rerun()
         if st.button("Close Settings"):
             st.session_state.show_settings = False
             st.rerun()
     
-    # Only show these if user is logged in
     if "user" in st.session_state:
         st.markdown(f"### Welcome, {st.session_state.user}")
         if st.button("New Chat"):
@@ -142,6 +157,7 @@ if "user" not in st.session_state:
                     st.session_state.user = u
                     st.session_state.messages = []
                     st.rerun()
+                else: st.error("Invalid credentials")
             else:
                 if u and p:
                     st.session_state.db["users"][u] = p
@@ -163,18 +179,16 @@ if prompt := st.chat_input("Ask Gobidas..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
-        # Check if img_file exists in the sidebar context
         try:
             if img_file: st.image(img_file, width=300)
         except: pass
 
     with st.chat_message("assistant"):
         try:
-            # Check for image processing
+            has_image = False
             try:
-                has_image = img_file is not None
-            except:
-                has_image = False
+                if img_file: has_image = True
+            except: pass
 
             if has_image:
                 img = Image.open(img_file).convert("RGB")
