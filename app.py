@@ -3,7 +3,7 @@ from groq import Groq
 import json, os, base64, io
 from PIL import Image
 
-# --- 1. UI & GLOW STYLE ---
+# --- 1. UI & ULTRA MODERN STYLE ---
 st.set_page_config(page_title="gobidas beta", layout="wide")
 
 def get_base64(file):
@@ -16,7 +16,7 @@ try:
     st.markdown(f"""
     <style>
     .stApp {{
-        background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.8)), 
+        background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.85)), 
                     url("data:image/jpeg;base64,{bin_str}");
         background-size: cover;
         background-position: center;
@@ -24,44 +24,46 @@ try:
     }}
     [data-testid="stSidebar"] {{
         background: rgba(0, 0, 0, 0.85) !important;
-        backdrop-filter: blur(15px);
+        backdrop-filter: blur(20px);
         border-right: 1px solid #FF6D00;
     }}
     .main-title {{
         font-weight: 900;
         color: #FF6D00;
         text-align: center;
-        font-size: 5rem;
-        text-shadow: 0px 0px 20px rgba(255, 109, 0, 0.6);
+        font-size: 5.5rem;
+        text-shadow: 0px 0px 25px rgba(255, 109, 0, 0.7);
+        text-transform: lowercase;
     }}
-    /* THE GLOW BUTTON EFFECT */
+    /* HOVER GLOW EFFECT */
     .stButton>button {{
         width: 100%;
-        border-radius: 12px;
+        border-radius: 10px;
         background: transparent !important;
         color: white !important;
         border: 2px solid #FF6D00 !important;
-        font-weight: 500;
-        transition: 0.3s all ease;
+        font-weight: 600;
+        transition: 0.4s all ease;
         text-transform: lowercase; 
     }}
     .stButton>button:hover {{
         background: #FF6D00 !important;
-        box-shadow: 0px 0px 30px rgba(255, 109, 0, 0.8);
+        box-shadow: 0px 0px 35px rgba(255, 109, 0, 0.9);
         color: black !important;
+        transform: translateY(-2px);
     }}
     .stChatMessage {{
         background: rgba(255, 255, 255, 0.05) !important;
-        backdrop-filter: blur(10px);
-        border-radius: 15px !important;
-        border: 1px solid rgba(255, 109, 0, 0.2) !important;
+        backdrop-filter: blur(15px);
+        border-radius: 18px !important;
+        border: 1px solid rgba(255, 109, 0, 0.25) !important;
     }}
     </style>
     """, unsafe_allow_html=True)
 except:
-    st.error("missing background.jpg")
+    st.error("background.jpg missing")
 
-# --- 2. DATA ---
+# --- 2. STORAGE ---
 DB_FILE = "gobidas_db.json"
 def load_db():
     if os.path.exists(DB_FILE):
@@ -76,13 +78,13 @@ def save_db(data):
 if "db" not in st.session_state:
     st.session_state.db = load_db()
 
-# --- 3. LOG IN / SIGN UP ---
+# --- 3. LOGIN SYSTEM ---
 if "user" not in st.session_state:
     st.markdown("<h1 class='main-title'>gobidas</h1>", unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1,1.5,1])
     with c2:
         mode = st.radio(" ", ["log in", "sign up"], horizontal=True)
-        u = st.text_input("name")
+        u = st.text_input("name").lower()
         p = st.text_input("password", type="password")
         if st.button("enter"):
             if mode == "log in":
@@ -95,14 +97,14 @@ if "user" not in st.session_state:
                     st.session_state.db["users"][u] = p
                     st.session_state.db["history"][u] = []
                     save_db(st.session_state.db)
-                    st.success("account created! switch to log in.")
+                    st.success("joined! now log in.")
     st.stop()
 
-# --- 4. ENGINE ---
+# --- 4. SIDEBAR & LOGS ---
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 with st.sidebar:
-    st.markdown(f"### hi, {st.session_state.user}")
+    st.markdown(f"## hi, {st.session_state.user}")
     if st.button("new chat"):
         st.session_state.messages = []
         st.session_state.active_idx = None
@@ -115,19 +117,19 @@ with st.sidebar:
     st.write("history")
     user_logs = st.session_state.db["history"].get(st.session_state.user, [])
     for i, log in enumerate(user_logs):
-        chat_label = log.get("name", f"chat {i+1}")
-        if st.button(f" {chat_label}", key=f"h_{i}"):
+        chat_name = log.get("name", f"chat {i+1}").lower()
+        if st.button(f" {chat_name}", key=f"h_{i}"):
             st.session_state.messages = log.get("msgs", [])
             st.session_state.active_idx = i
             st.rerun()
 
-# --- 5. CHAT ---
+# --- 5. CHAT ENGINE ---
 st.markdown("<h1 class='main-title'>gobidas</h1>", unsafe_allow_html=True)
 
 for m in st.session_state.messages:
     with st.chat_message(m["role"]): st.markdown(m["content"])
 
-if prompt := st.chat_input("type something..."):
+if prompt := st.chat_input("send a message..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
@@ -137,20 +139,21 @@ if prompt := st.chat_input("type something..."):
         try:
             if img_file:
                 img = Image.open(img_file).convert("RGB")
-                img.thumbnail((800, 800))
+                img.thumbnail((512, 512)) # Llava works best with smaller squares
                 buf = io.BytesIO()
                 img.save(buf, format="JPEG")
                 b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
                 
-                # USING THE POWERFUL 90B VISION MODEL
+                # USING LAVA FOR VISION (NOT LLAMA)
                 res = client.chat.completions.create(
-                    model="llama-3.2-90b-vision-preview",
+                    model="llava-v1.5-7b-4096",
                     messages=[{"role": "user", "content": [
                         {"type": "text", "text": prompt},
                         {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
                     ]}]
                 )
             else:
+                # USING LLAMA 3.3 (THE LATEST NON-3.2 TEXT MODEL)
                 res = client.chat.completions.create(
                     model="llama-3.3-70b-versatile",
                     messages=st.session_state.messages
@@ -160,11 +163,11 @@ if prompt := st.chat_input("type something..."):
             st.markdown(ans)
             st.session_state.messages.append({"role": "assistant", "content": ans})
             
-            # SAVING WITH USER PROMPT SUMMARY
+            # SAVING WITH PROMPT SUMMARY
             hist = st.session_state.db["history"].get(st.session_state.user, [])
             if st.session_state.get("active_idx") is None:
-                summary = (prompt[:30] + '..') if len(prompt) > 30 else prompt
-                hist.append({"name": summary.lower(), "msgs": st.session_state.messages})
+                summary = (prompt[:25] + '..').lower() if len(prompt) > 25 else prompt.lower()
+                hist.append({"name": summary, "msgs": st.session_state.messages})
                 st.session_state.db["history"][st.session_state.user] = hist
                 st.session_state.active_idx = len(hist) - 1
             else:
