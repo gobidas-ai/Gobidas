@@ -3,7 +3,7 @@ from groq import Groq
 import json, os, base64, io, time
 from PIL import Image
 
-# --- 1. CONFIG & STYLING ---
+# --- 1. CONFIG & REFINED UI HIDING ---
 st.set_page_config(page_title="Gobidas Beta", layout="wide", initial_sidebar_state="expanded")
 
 def get_base64(file):
@@ -16,11 +16,29 @@ bin_str = get_base64('background.jpg')
 
 st.markdown(f"""
 <style>
-    /* ENSURE SIDEBAR IS VISIBLE */
+    /* HIDE TOP HEADER ICONS (GITHUB, SHARE, ETC) */
+    header[data-testid="stHeader"] {{
+        background: transparent !important;
+    }}
+    header[data-testid="stHeader"] > div:first-child {{
+        display: none !important;
+    }}
+    
+    /* HIDE FOOTER AND DEPLOY BUTTON */
+    .stDeployButton, footer, [data-testid="stStatusWidget"] {{
+        display: none !important;
+    }}
+
+    /* SIDEBAR STYLING & TOGGLE FIX */
     [data-testid="stSidebar"] {{
         background-color: rgba(10, 10, 10, 0.98) !important;
         border-right: 2px solid #FF6D00;
-        min-width: 300px !important;
+    }}
+    
+    [data-testid="stSidebarCollapseButton"] {{
+        color: #FF6D00 !important;
+        background: rgba(0,0,0,0.5) !important;
+        border: 1px solid #FF6D00 !important;
     }}
 
     /* GLOBAL DESIGN */
@@ -48,14 +66,13 @@ st.markdown(f"""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. DATABASE & MASSIVE LEGAL ---
+# --- 2. DATABASE & IRONCLAD LEGAL ---
 DB_FILE = "gobidas_db.json"
 def load_db():
     if os.path.exists(DB_FILE):
         try:
             with open(DB_FILE, "r") as f:
-                data = json.load(f)
-                return data
+                return json.load(f)
         except: pass
     return {"users": {}, "history": {}}
 
@@ -71,18 +88,19 @@ def show_legal():
     st.write("""
     **1.1 Experimental Nature:** Gobidas is an experimental artificial intelligence interface. Users acknowledge that the software is provided 'as-is' and may contain bugs or functional defects. 
     **1.2 Output Accuracy:** AI models are prone to 'hallucinations'—generating facts that are incorrect or nonsensical. The developer assumes zero responsibility for the truthfulness of any AI response.
+    **1.3 Availability:** The developer reserves the right to modify or terminate access at any time without prior notice.
     """)
     st.markdown("### **ARTICLE 2: LEGAL LIABILITY & INDEMNITY**")
     st.write("""
     **2.1 Third-Party Models:** Gobidas uses models from Meta (Llama) and services from Groq. Any harm caused by the logic of these models is the responsibility of the model creators, not the Gobidas UI developer.
     **2.2 Total Indemnity:** By using this application, the user agrees to waive all rights to pursue legal action against the developer for any reason, including but not limited to data loss, offensive output, or system errors.
-    **2.3 No Professional Advice:** This AI is for entertainment and general information only. It is NOT a doctor, lawyer, or financial advisor. 
+    **2.3 No Professional Advice:** This AI is for entertainment and general information only. It is NOT a doctor, lawyer, or financial advisor. Use for life-critical decisions is strictly at your own risk.
     """)
     st.markdown("### **ARTICLE 3: DATA PRIVACY & RETENTION**")
     st.write("""
-    **3.1 Data Sovereignty:** Your credentials and history are stored in a local JSON file. No data is shared with third-party advertisers.
-    **3.2 The 30-Day Purge:** All chat history is automatically deleted after 30 days to protect your privacy and maintain system performance. This action is final and unrecoverable.
-    **3.3 Encryption:** While we use standard security measures, no system is 100% secure. Use at your own discretion.
+    **3.1 Data Sovereignty:** Your credentials and history are stored in a local JSON file. No data is shared with third-party advertisers or external entities.
+    **3.2 The 30-Day Purge:** All chat history is automatically deleted after 30 days of inactivity to protect your privacy and maintain system performance. This action is final and unrecoverable.
+    **3.3 Transmission:** Inputs are processed via secure API calls to Groq Cloud. While we use standard security measures, no digital system is 100% secure.
     """)
 
 # --- 3. LOGIN / SIGN UP FLOW ---
