@@ -3,7 +3,7 @@ from groq import Groq
 import json, os, base64, io
 from PIL import Image
 
-# --- 1. UI & STEALTH STYLE ---
+# --- 1. UI & TOTAL STEALTH STYLE ---
 st.set_page_config(page_title="Gobidas Beta", layout="wide")
 
 def get_base64(file):
@@ -15,16 +15,33 @@ try:
     bin_str = get_base64('background.jpg')
     st.markdown(f"""
     <style>
-    /* HIDE STREAMLIT BRANDING & UI ELEMENTS */
+    /* 1. HIDE ALL STREAMLIT DEFAULTS */
     #MainMenu {{visibility: hidden;}}
     footer {{visibility: hidden;}}
     header {{visibility: hidden;}}
-    .stDeployButton {{display:none;}}
+    
+    /* 2. REMOVE TOP TOOLBAR & GITHUB ICONS */
     [data-testid="stToolbar"] {{display: none !important;}}
     [data-testid="stDecoration"] {{display: none !important;}}
-    [data-testid="stManageAppButton"] {{display: none !important;}}
+    .stDeployButton {{display:none !important;}}
 
-    /* Background */
+    /* 3. AGGRESSIVE HIDE FOR "MANAGE APP" & CONNECTION STATUS */
+    [data-testid="stStatusWidget"] {{display: none !important;}}
+    [data-testid="stManageAppButton"] {{display: none !important;}}
+    .stAppDeployButton {{display: none !important;}}
+    footer {{display: none !important;}}
+    
+    /* This targets the specific bottom-right floating container */
+    div[data-testid="stAppViewBlockContainer"] + div {{
+        display: none !important;
+    }}
+    
+    /* Extra layer for the host-inserted manage button */
+    iframe[title="manage-app"] {{
+        display: none !important;
+    }}
+
+    /* 4. DESIGN & GLOW */
     .stApp {{
         background: linear-gradient(rgba(0,0,0,0.65), rgba(0,0,0,0.85)), 
                     url("data:image/jpeg;base64,{bin_str}");
@@ -33,14 +50,12 @@ try:
         background-attachment: fixed;
     }}
 
-    /* Sidebar */
     [data-testid="stSidebar"] {{
         background: rgba(0, 0, 0, 0.9) !important;
         backdrop-filter: blur(25px);
         border-right: 2px solid #FF6D00;
     }}
 
-    /* Title */
     .main-title {{
         font-weight: 900;
         color: #FF6D00;
@@ -49,7 +64,6 @@ try:
         text-shadow: 0px 0px 25px rgba(255, 109, 0, 0.6);
     }}
 
-    /* Hover Glow Buttons */
     .stButton>button {{
         width: 100%;
         border-radius: 12px;
@@ -59,13 +73,13 @@ try:
         font-weight: 600;
         transition: 0.3s all ease-in-out;
     }}
+
     .stButton>button:hover {{
         background: #FF6D00 !important;
         box-shadow: 0px 0px 30px rgba(255, 109, 0, 0.9);
         color: black !important;
     }}
 
-    /* Chat Bubbles */
     .stChatMessage {{
         background: rgba(255, 255, 255, 0.07) !important;
         backdrop-filter: blur(15px);
@@ -114,7 +128,7 @@ if "user" not in st.session_state:
                     st.success("Account created! Please Log In.")
     st.stop()
 
-# --- 4. CORE ENGINE ---
+# --- 4. ENGINE ---
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 with st.sidebar:
@@ -158,7 +172,7 @@ if prompt := st.chat_input("Ask Gobidas..."):
                 img.save(buf, format="JPEG")
                 b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
                 
-                # Using Llama 4 Scout (Non-3.2 Vision Model)
+                # Using Llama 4 Scout for Vision
                 res = client.chat.completions.create(
                     model="meta-llama/llama-4-scout-17b-16e-instruct",
                     messages=[{"role": "user", "content": [
