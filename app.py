@@ -4,7 +4,7 @@ import json, os, base64, io, time
 from PIL import Image
 import streamlit.components.v1 as components
 
-# --- 1. CONFIG & RE-ENABLED SIDEBAR ---
+# --- 1. CONFIG & UI OVERRIDES ---
 st.set_page_config(page_title="Gobidas Beta", layout="wide", initial_sidebar_state="expanded")
 
 def get_base64(file):
@@ -17,88 +17,69 @@ bin_str = get_base64('background.jpg')
 
 st.markdown(f"""
 <style>
-    /* 1. COMPLETELY WIPE THE TOP RIGHT ICONS (GITHUB, SHARE, ETC) */
-    [data-testid="stHeader"] {{
-        background: transparent !important;
-    }}
-    
-    /* Target the specific container for top-right buttons */
-    header[data-testid="stHeader"] > div:nth-child(1) {{
-        display: none !important;
-    }}
-
+    /* NUCLEAR UI CLEANER */
+    [data-testid="stHeader"] {{ background: transparent !important; }}
+    header[data-testid="stHeader"] > div:nth-child(1) {{ display: none !important; }}
     .stDeployButton, footer, [data-testid="stStatusWidget"], .stActionButton {{
-        display: none !important;
-        visibility: hidden !important;
+        display: none !important; visibility: hidden !important;
     }}
     
-    /* 2. STYLE THE SIDEBAR OPENER (KEEP THIS VISIBLE) */
+    /* SIDEBAR TOGGLE BUTTON */
     [data-testid="stSidebarCollapseButton"] {{
         visibility: visible !important;
         display: block !important;
         color: #FF6D00 !important;
-        background: rgba(0,0,0,0.7) !important;
+        background: rgba(0,0,0,0.8) !important;
         border-radius: 8px !important;
         border: 2px solid #FF6D00 !important;
         margin: 10px !important;
     }}
 
-    /* 3. SIDEBAR DESIGN */
+    /* SIDEBAR DESIGN */
     [data-testid="stSidebar"] {{
         background-color: rgba(10, 10, 10, 0.98) !important;
         border-right: 2px solid #FF6D00;
     }}
 
-    /* 4. APP BACKGROUND & TITLES */
+    /* GLOBAL STYLING */
     .stApp {{
-        background: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), 
+        background: linear-gradient(rgba(0,0,0,0.75), rgba(0,0,0,0.75)), 
                     url("data:image/jpeg;base64,{bin_str if bin_str else ''}");
-        background-size: cover;
-        background-attachment: fixed;
+        background-size: cover; background-attachment: fixed;
     }}
     .main-title {{
-        font-weight: 900; color: #FF6D00; text-align: center; font-size: 5rem;
-        text-shadow: 0px 0px 30px rgba(255, 109, 0, 0.7);
-        margin-top: -30px;
+        font-weight: 900; color: #FF6D00; text-align: center; font-size: 5.5rem;
+        text-shadow: 0px 0px 35px rgba(255, 109, 0, 0.8);
+        margin-top: -40px;
     }}
     .stButton>button {{
-        width: 100%; border-radius: 10px; border: 1px solid #FF6D00 !important;
-        color: white !important; background: transparent; font-weight: bold;
+        width: 100%; border-radius: 12px; border: 1px solid #FF6D00 !important;
+        color: white !important; background: transparent; font-weight: 800;
+        text-transform: uppercase; letter-spacing: 1px;
     }}
     .stButton>button:hover {{
         background: #FF6D00 !important; color: black !important;
-        box-shadow: 0px 0px 20px rgba(255, 109, 0, 0.5);
+        box-shadow: 0px 0px 25px rgba(255, 109, 0, 0.6);
     }}
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. THE AGGRESSIVE CLEANER SCRIPT ---
-# This kills the GitHub and "Manage app" icons every 100ms
+# AGGRESSIVE UI CLEANER SCRIPT
 components.html("""
 <script>
     const cleanUI = () => {
         const parentDoc = window.parent.document;
-        
-        // Kill the top right icon group (Github/Share/Menu)
         const toolbar = parentDoc.querySelector('[data-testid="stHeader"] > div:nth-child(1)');
         if (toolbar) toolbar.style.display = 'none';
-
-        // Kill Manage App button
         parentDoc.querySelectorAll('button').forEach(btn => {
-            if (btn.innerText.includes('Manage app')) {
-                btn.parentElement.style.display = 'none';
-            }
+            if (btn.innerText.includes('Manage app')) btn.parentElement.style.display = 'none';
         });
-        
-        // Hide footer/deploy just in case
-        const deploy = parentDoc.querySelector('.stDeployButton');
-        if (deploy) deploy.style.display = 'none';
     };
     setInterval(cleanUI, 100);
 </script>
 """, height=0)
 
-# --- 3. DATABASE & FULL LEGAL ---
+# --- 2. DATABASE & MASSIVE LEGAL ---
 DB_FILE = "gobidas_db.json"
 def load_db():
     if os.path.exists(DB_FILE):
@@ -119,60 +100,87 @@ if "db" not in st.session_state:
     st.session_state.db = load_db()
 
 def show_legal():
-    st.markdown("## Comprehensive Terms of Service & Privacy Agreement")
-    st.error("### **BETA VERSION NOTICE**\nGobidas AI is in beta. Use at your own risk.")
-    st.markdown("### 1. Limitation of Liability")
+    st.markdown("## 📜 OFFICIAL TERMS OF SERVICE & PRIVACY POLICY")
+    st.warning("### **SECTION 1: EXPERIMENTAL BETA DISCLAIMER**")
     st.write("""
-    **A. Third-Party Models:** Gobidas acts solely as a user interface for models like Meta (Llama) via Groq. 
-    The developer is NOT responsible for AI output.
-    **B. Indemnity:** By using this app, you agree to hold the developer harmless from any legal fees or claims.
+    Gobidas (the 'Application') is currently provided in a Beta testing capacity. By accessing this Application, the user acknowledges that the Software is undergoing active development and may contain critical errors, functional limitations, or generate outputs that are factually incorrect, biased, or inappropriate. The developer provides NO GUARANTEE of uptime or accuracy.
     """)
-    st.markdown("### 2. Privacy Policy")
-    st.write("Credentials and logs are stored locally. All data is automatically purged after 30 days.")
+    
+    st.markdown("### **SECTION 2: ABSOLUTE LIMITATION OF LIABILITY**")
+    st.write("""
+    **A. Third-Party Intelligence:** Gobidas functions as a graphical interface connecting to Large Language Models (LLMs) developed by third parties (e.g., Meta's Llama models) and hosted via Groq Inc. The developer has no control over the logic, training data, or responses generated by these models.
+    **B. No Direct Responsibility:** In no event shall the developer, affiliates, or contributors be liable for any direct, indirect, incidental, or consequential damages (including but not limited to loss of data, loss of profits, or personal injury) arising from the use of AI-generated content. 
+    **C. Indemnification:** The user agrees to defend, indemnify, and hold harmless the developer from any claims or legal actions resulting from the user's reliance on the Software's outputs.
+    """)
 
-# --- 4. LOGIN SCREEN ---
+    st.markdown("### **SECTION 3: DATA PRIVACY & SECURITY PROTOCOLS**")
+    st.write("""
+    **A. Local Storage Infrastructure:** To ensure maximum user sovereignty, all account credentials and conversational histories are stored in a local JSON database on the host machine. We do not maintain centralized cloud databases for user logs.
+    **B. Automatic Data Liquidation:** This Application enforces a strict 30-day data retention policy. Every interaction is timestamped; any data exceeding 30 calendar days (2,592,000 seconds) is permanently purged via an automated cleanup script. This process is irreversible.
+    **C. External Transmission:** Data entered (text and images) is transmitted via encrypted channels to Groq Cloud for processing. Users are encouraged to review Groq’s privacy documentation for information on how they handle transient inference data.
+    """)
+
+    st.markdown("### **SECTION 4: USER CODE OF CONDUCT**")
+    st.write("""
+    Users are prohibited from:
+    1. Using the system to generate illegal, harmful, or non-consensual sexual content.
+    2. Attempting to reverse-engineer the Application or bypass security filters.
+    3. Relying on the Application for life-critical advice (Medical, Legal, or Financial).
+    """)
+
+# --- 3. LOGIN / SIGN IN SCREEN ---
 if "user" not in st.session_state:
     st.markdown("<h1 class='main-title'>Gobidas</h1>", unsafe_allow_html=True)
-    c1, c2, c3 = st.columns([1, 1.8, 1])
+    c1, c2, c3 = st.columns([1, 2, 1])
     with c2:
-        mode = st.radio(" ", ["Log In", "Sign Up"], horizontal=True)
-        u = st.text_input("Name")
-        p = st.text_input("Password", type="password")
-        agree = st.checkbox("I agree to the 30-day retention and liability terms")
-        if st.button("Access Gobidas", disabled=not agree):
-            if mode == "Log In":
+        mode = st.radio("SELECT MODE", ["LOG IN", "SIGN UP"], horizontal=True)
+        u = st.text_input("USERNAME")
+        p = st.text_input("PASSWORD", type="password")
+        
+        st.caption("Review the legally binding terms below before entering.")
+        agree = st.checkbox("I HAVE READ AND AGREE TO ALL TERMS AND PRIVACY POLICIES")
+        
+        # Action button labeled "ENTER"
+        if st.button("ENTER", disabled=not agree):
+            if mode == "LOG IN":
                 if u in st.session_state.db["users"] and st.session_state.db["users"][u] == p:
                     st.session_state.user = u
                     st.session_state.messages = []
                     st.rerun()
-                else: st.error("Login Failed.")
+                else: st.error("ACCESS DENIED: INVALID CREDENTIALS")
             else:
                 if u and p:
-                    st.session_state.db["users"][u] = p
-                    st.session_state.db["history"][u] = []
-                    save_db(st.session_state.db)
-                    st.success("Account Created.")
-        with st.expander("Full Legal Docs"): show_legal()
+                    if u in st.session_state.db["users"]:
+                        st.error("USERNAME ALREADY EXISTS")
+                    else:
+                        st.session_state.db["users"][u] = p
+                        st.session_state.db["history"][u] = []
+                        save_db(st.session_state.db)
+                        st.success("ACCOUNT CREATED. PROCEED TO LOG IN.")
+        
+        st.divider()
+        with st.expander("VIEW COMPREHENSIVE LEGAL DOCUMENTATION"):
+            show_legal()
     st.stop()
 
-# --- 5. SIDEBAR ---
+# --- 4. SIDEBAR ---
 with st.sidebar:
     st.title(f"@{st.session_state.user}")
-    if st.button("➕ New Chat"):
+    if st.button("➕ NEW SESSION"):
         st.session_state.messages = []
         st.session_state.active_idx = None
         st.rerun()
     
-    img_file = st.file_uploader("Upload Image", type=['png', 'jpg', 'jpeg'])
+    img_file = st.file_uploader("VISION UPLOAD", type=['png', 'jpg', 'jpeg'])
     
     st.divider()
-    st.write("### History")
+    st.write("### CHAT ARCHIVES")
     hist_list = st.session_state.db["history"].get(st.session_state.user, [])
     for i in range(len(hist_list)-1, -1, -1):
         chat = hist_list[i]
         c_chat, c_del = st.columns([0.8, 0.2])
         with c_chat:
-            if st.button(chat.get('name', 'Chat'), key=f"open_{i}"):
+            if st.button(chat.get('name', 'Log'), key=f"open_{i}"):
                 st.session_state.messages = chat.get("msgs", [])
                 st.session_state.active_idx = i
                 st.rerun()
@@ -187,22 +195,22 @@ with st.sidebar:
                 st.rerun()
 
     st.divider()
-    if st.button("⚙️ Settings"):
+    if st.button("⚙️ SYSTEM SETTINGS"):
         st.session_state.show_settings = not st.session_state.get("show_settings", False)
     if st.session_state.get("show_settings"):
-        if st.button("Logout"):
+        if st.button("TERMINATE SESSION"):
             del st.session_state.user
             st.rerun()
-        with st.expander("Terms"): show_legal()
+        with st.expander("LEGAL DOCS"): show_legal()
 
-# --- 6. CHAT ---
+# --- 5. CHAT ENGINE ---
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 st.markdown("<h1 class='main-title'>Gobidas</h1>", unsafe_allow_html=True)
 
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]): st.markdown(msg["content"])
 
-if prompt := st.chat_input("Ask Gobidas..."):
+if prompt := st.chat_input("COMMAND INPUT..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
@@ -228,7 +236,7 @@ if prompt := st.chat_input("Ask Gobidas..."):
             
             # Save
             history = st.session_state.db["history"].get(st.session_state.user, [])
-            chat_title = prompt[:20] + "..." if len(prompt) > 20 else prompt
+            chat_title = prompt[:22] + "..." if len(prompt) > 22 else prompt
             chat_entry = {"name": chat_title, "msgs": st.session_state.messages, "ts": time.time()}
             if st.session_state.get("active_idx") is None:
                 history.append(chat_entry); st.session_state.active_idx = len(history) - 1
@@ -236,4 +244,5 @@ if prompt := st.chat_input("Ask Gobidas..."):
                 history[st.session_state.active_idx] = chat_entry
             st.session_state.db["history"][st.session_state.user] = history
             save_db(st.session_state.db)
-        except Exception as e: st.error(f"Error: {e}")
+        except Exception as e: st.error(f"SYSTEM OVERLOAD: {e}")
+        
