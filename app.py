@@ -3,8 +3,8 @@ from groq import Groq
 import json, os, base64, io
 from PIL import Image
 
-# --- 1. UI & ULTRA MODERN STYLE ---
-st.set_page_config(page_title="gobidas beta", layout="wide")
+# --- 1. UI & MODERN GLOW STYLE ---
+st.set_page_config(page_title="Gobidas Beta", layout="wide")
 
 def get_base64(file):
     with open(file, 'rb') as f:
@@ -16,7 +16,7 @@ try:
     st.markdown(f"""
     <style>
     .stApp {{
-        background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.85)), 
+        background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.8)), 
                     url("data:image/jpeg;base64,{bin_str}");
         background-size: cover;
         background-position: center;
@@ -33,24 +33,22 @@ try:
         text-align: center;
         font-size: 5.5rem;
         text-shadow: 0px 0px 25px rgba(255, 109, 0, 0.7);
-        text-transform: lowercase;
     }}
     /* HOVER GLOW EFFECT */
     .stButton>button {{
         width: 100%;
-        border-radius: 10px;
+        border-radius: 12px;
         background: transparent !important;
         color: white !important;
         border: 2px solid #FF6D00 !important;
         font-weight: 600;
         transition: 0.4s all ease;
-        text-transform: lowercase; 
     }}
     .stButton>button:hover {{
         background: #FF6D00 !important;
         box-shadow: 0px 0px 35px rgba(255, 109, 0, 0.9);
         color: black !important;
-        transform: translateY(-2px);
+        transform: scale(1.02);
     }}
     .stChatMessage {{
         background: rgba(255, 255, 255, 0.05) !important;
@@ -61,7 +59,7 @@ try:
     </style>
     """, unsafe_allow_html=True)
 except:
-    st.error("background.jpg missing")
+    st.error("Please ensure 'background.jpg' is in your folder.")
 
 # --- 2. STORAGE ---
 DB_FILE = "gobidas_db.json"
@@ -80,56 +78,58 @@ if "db" not in st.session_state:
 
 # --- 3. LOGIN SYSTEM ---
 if "user" not in st.session_state:
-    st.markdown("<h1 class='main-title'>gobidas</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 class='main-title'>Gobidas</h1>", unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1,1.5,1])
     with c2:
-        mode = st.radio(" ", ["log in", "sign up"], horizontal=True)
-        u = st.text_input("name").lower()
-        p = st.text_input("password", type="password")
-        if st.button("enter"):
-            if mode == "log in":
+        mode = st.radio(" ", ["Log In", "Sign Up"], horizontal=True)
+        u = st.text_input("Name")
+        p = st.text_input("Password", type="password")
+        if st.button("Enter"):
+            if mode == "Log In":
                 if u in st.session_state.db["users"] and st.session_state.db["users"][u] == p:
                     st.session_state.user = u
                     st.session_state.messages = []
                     st.rerun()
+                else:
+                    st.error("Invalid credentials.")
             else:
                 if u and p:
                     st.session_state.db["users"][u] = p
                     st.session_state.db["history"][u] = []
                     save_db(st.session_state.db)
-                    st.success("joined! now log in.")
+                    st.success("Account created! Please Log In.")
     st.stop()
 
 # --- 4. SIDEBAR & LOGS ---
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 with st.sidebar:
-    st.markdown(f"## hi, {st.session_state.user}")
-    if st.button("new chat"):
+    st.markdown(f"## Welcome, {st.session_state.user}")
+    if st.button("New Chat"):
         st.session_state.messages = []
         st.session_state.active_idx = None
         st.rerun()
     
     st.divider()
-    img_file = st.file_uploader("upload image", type=['png', 'jpg', 'jpeg'])
+    img_file = st.file_uploader("Upload Image", type=['png', 'jpg', 'jpeg'])
     
     st.divider()
-    st.write("history")
+    st.write("Recent Conversations")
     user_logs = st.session_state.db["history"].get(st.session_state.user, [])
     for i, log in enumerate(user_logs):
-        chat_name = log.get("name", f"chat {i+1}").lower()
+        chat_name = log.get("name", f"Chat {i+1}")
         if st.button(f" {chat_name}", key=f"h_{i}"):
             st.session_state.messages = log.get("msgs", [])
             st.session_state.active_idx = i
             st.rerun()
 
 # --- 5. CHAT ENGINE ---
-st.markdown("<h1 class='main-title'>gobidas</h1>", unsafe_allow_html=True)
+st.markdown("<h1 class='main-title'>Gobidas</h1>", unsafe_allow_html=True)
 
 for m in st.session_state.messages:
     with st.chat_message(m["role"]): st.markdown(m["content"])
 
-if prompt := st.chat_input("send a message..."):
+if prompt := st.chat_input("Ask something..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
@@ -139,21 +139,19 @@ if prompt := st.chat_input("send a message..."):
         try:
             if img_file:
                 img = Image.open(img_file).convert("RGB")
-                img.thumbnail((512, 512)) # Llava works best with smaller squares
+                img.thumbnail((512, 512)) 
                 buf = io.BytesIO()
                 img.save(buf, format="JPEG")
                 b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
                 
-                # USING LAVA FOR VISION (NOT LLAMA)
                 res = client.chat.completions.create(
-                    model="llava-v1.5-7b-4096",
+                    model="moondream2",
                     messages=[{"role": "user", "content": [
                         {"type": "text", "text": prompt},
                         {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
                     ]}]
                 )
             else:
-                # USING LLAMA 3.3 (THE LATEST NON-3.2 TEXT MODEL)
                 res = client.chat.completions.create(
                     model="llama-3.3-70b-versatile",
                     messages=st.session_state.messages
@@ -166,7 +164,7 @@ if prompt := st.chat_input("send a message..."):
             # SAVING WITH PROMPT SUMMARY
             hist = st.session_state.db["history"].get(st.session_state.user, [])
             if st.session_state.get("active_idx") is None:
-                summary = (prompt[:25] + '..').lower() if len(prompt) > 25 else prompt.lower()
+                summary = (prompt[:30] + '...') if len(prompt) > 30 else prompt
                 hist.append({"name": summary, "msgs": st.session_state.messages})
                 st.session_state.db["history"][st.session_state.user] = hist
                 st.session_state.active_idx = len(hist) - 1
@@ -175,4 +173,4 @@ if prompt := st.chat_input("send a message..."):
                 st.session_state.db["history"][st.session_state.user][idx]["msgs"] = st.session_state.messages
             save_db(st.session_state.db)
         except Exception as e:
-            st.error(f"error: {e}")
+            st.error(f"Error: {e}")
