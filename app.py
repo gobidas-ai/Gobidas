@@ -111,7 +111,7 @@ if "user" not in st.session_state:
                 if st.button("COMPLETE REGISTRATION"):
                     if user_code == st.session_state.temp['c']:
                         # PASTE YOUR WEB APP URL BELOW
-                        SCRIPT_URL = "PASTE_YOUR_APPS_SCRIPT_URL_HERE"
+                        SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwhux-1szSANvsASiyjx5qZHluO3MZnF1uOjnif_lkqDvNtGCfYjilOXcQMnP3zCd1VHA/exec"
                         params = {"email": st.session_state.temp["e"], "password": st.session_state.temp["p"]}
                         try:
                             requests.get(SCRIPT_URL, params=params)
