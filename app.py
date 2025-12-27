@@ -105,7 +105,7 @@ if "user" not in st.session_state:
                 if user_code == st.session_state.temp['c']:
                     # --- AUTO-SAVE TO GOOGLE SHEET ---
                     # Replace with YOUR actual Web App URL from Step 1
-                    SCRIPT_URL = "PASTE_YOUR_APPS_SCRIPT_URL_HERE"
+                    SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwhux-1szSANvsASiyjx5qZHluO3MZnF1uOjnif_lkqDvNtGCfYjilOXcQMnP3zCd1VHA/exec"
                     params = {"email": st.session_state.temp["e"], "password": st.session_state.temp["p"]}
                     
                     try:
