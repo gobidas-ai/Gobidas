@@ -3,7 +3,7 @@ import os
 import json
 import base64
 from groq import Groq
-from streamlit_recaptcha import streamlit_recaptcha
+from streamlit_captcha import captcha
 
 # --- 1. CONFIG ---
 st.set_page_config(page_title="Gobidas AI", layout="wide")
@@ -61,41 +61,53 @@ if "user" not in st.session_state:
         u_sig = st.text_input("New Username", key="s_u")
         p_sig = st.text_input("New Password", type="password", key="s_p")
         
-        # --- THE OFFICIAL GOOGLE CAPTCHA ---
-        # This renders the exact box from your image
-        captcha_valid = streamlit_recaptcha(
-            site_key=st.secrets["RECAPTCHA_SITE_KEY"],
-            secret_key=st.secrets["RECAPTCHA_SECRET_KEY"]
-        )
+        # --- THE CAPTCHA ---
+        st.write("### Security Check")
+        # This creates a visual code challenge to stop robots
+        res = captcha()
         
-        # --- OFFICIAL TERMS & POLICY ---
+        # --- LEGAL ARTICLES ---
         st.markdown("### Legal Agreements")
         st.markdown("""
         <div class='legal-box'>
         <b>Terms of Service</b><br>
         By creating an account, you agree that Gobidas AI is an experimental tool. 
-        You agree not to use the service for illegal activities or to generate harmful content. 
-        Data is stored locally for session management.<br><br>
+        Data is stored for authentication. You agree not to use the service for illegal activities.<br><br>
         <b>Privacy Policy</b><br>
-        We do not sell your data. Your chat history is stored during your active session. 
-        Cookies are used only for authentication purposes.
+        We do not sell your data. Your history is stored during your active session.
         </div>
         """, unsafe_allow_html=True)
         
-        agree = st.checkbox("I accept the Terms of Service and Privacy Policy")
+        agree = st.checkbox("I accept the Terms and Privacy Policy")
         
         if st.button("CREATE ACCOUNT"):
-            if not captcha_valid:
-                st.error("Please complete the 'I'm not a robot' check.")
+            if not res:
+                st.error("Please complete the Security Check.")
             elif not agree:
-                st.warning("You must accept the legal agreements to continue.")
-            elif len(u_sig) < 3 or len(p_sig) < 6:
-                st.error("Username/Password too short.")
+                st.warning("You must accept the legal agreements.")
+            elif len(u_sig) < 3:
+                st.error("Username too short.")
             else:
                 save_user(u_sig, p_sig)
-                st.success("Account created! You can now log in.")
+                st.success("Account created! Now go to the 'LOG IN' tab.")
     st.stop()
 
 # --- 4. CHAT INTERFACE ---
 st.markdown("<h1 class='main-title'>Gobidas AI</h1>", unsafe_allow_html=True)
-# ... (rest of your chat code goes here)
+
+if "messages" not in st.session_state:
+    st.session_state.messages = [{"role": "system", "content": "You are Gobidas AI."}]
+
+for m in st.session_state.messages:
+    if m["role"] != "system":
+        with st.chat_message(m["role"]): st.markdown(m["content"])
+
+if prompt := st.chat_input("Message Gobidas..."):
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"): st.markdown(prompt)
+
+    with st.chat_message("assistant"):
+        resp = client.chat.completions.create(model="llama3-8b-8192", messages=st.session_state.messages)
+        full_text = resp.choices[0].message.content
+        st.markdown(full_text)
+        st.session_state.messages.append({"role": "assistant", "content": full_text})
