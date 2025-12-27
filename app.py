@@ -7,7 +7,7 @@ from groq import Groq
 # --- 1. CONFIG & UI ---
 st.set_page_config(page_title="Gobidas AI", layout="wide")
 
-# Client setup
+# Client setup - Ensure GROQ_API_KEY is in Streamlit Secrets
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 def get_base64(file):
@@ -23,10 +23,10 @@ st.markdown(f"""
 <style>
     [data-testid="stHeader"] {{ background: transparent !important; }}
     .stApp {{ 
-        background: linear-gradient(rgba(0,0,0,0.8), rgba(0,0,0,0.8)), url("data:image/jpeg;base64,{bin_str}"); 
+        background: linear-gradient(rgba(0,0,0,0.85), rgba(0,0,0,0.85)), url("data:image/jpeg;base64,{bin_str}"); 
         background-size: cover; 
     }}
-    .main-title {{ font-weight: 900; color: #FF6D00; text-align: center; font-size: 5rem; text-shadow: 0px 0px 25px #FF6D00; }}
+    .main-title {{ font-weight: 900; color: #FF6D00; text-align: center; font-size: 5rem; text-shadow: 0px 0px 25px #FF6D00; margin-bottom: 0px; }}
     .stButton>button {{ width: 100%; border: 2px solid #FF6D00 !important; color: white !important; background: rgba(0,0,0,0.3) !important; font-weight: bold; border-radius: 8px; }}
     .stButton>button:hover {{ background: #FF6D00 !important; color: black !important; }}
     [data-testid="stSidebar"] {{ background-color: #000000 !important; border-right: 1px solid #FF6D00; }}
@@ -38,12 +38,14 @@ st.markdown(f"""
 def load_db():
     try:
         sheet_url = st.secrets["connections"]["gsheets"]["spreadsheet"]
-        csv_url = sheet_url.replace("/edit?usp=sharing", "/export?format=csv")
+        # This split logic ensures we get a clean CSV download even if the link format varies
+        csv_url = sheet_url.split('/edit')[0] + '/export?format=csv'
         df = pd.read_csv(csv_url)
-        # Clean column names to prevent KeyError
-        df.columns = df.columns.str.strip().str.lower()
+        # Force column names to lowercase and strip whitespace to prevent KeyError
+        df.columns = [str(c).strip().lower() for c in df.columns]
         return df
-    except:
+    except Exception as e:
+        # Fallback to avoid crashing the login screen
         return pd.DataFrame(columns=["email", "password"])
 
 def send_otp(target_email):
@@ -74,13 +76,7 @@ if "user" not in st.session_state:
             u_pass = st.text_input("PASSWORD", type="password")
             
             with st.expander("⚖️ LEGAL ARTICLES & PRIVACY POLICY"):
-                st.markdown("""
-                <div class='legal-box'>
-                <b>Article 1: Data Usage</b><br>Email used for auth only.<br><br>
-                <b>Article 2: AI Conduct</b><br>Experimental AI. Do not share secrets.<br><br>
-                <b>Article 3: User Agreement</b><br>Agree to 2025 AI Safety guidelines.
-                </div>
-                """, unsafe_allow_html=True)
+                st.markdown("<div class='legal-box'><b>Art. 1:</b> Data used for auth only. <b>Art. 2:</b> Experimental AI. <b>Art. 3:</b> Agree to 2025 Safety Rules.</div>", unsafe_allow_html=True)
             agree = st.checkbox("I agree to the Legal Articles")
 
             if st.button("PROCEED", disabled=not agree):
@@ -92,7 +88,7 @@ if "user" not in st.session_state:
                             st.session_state.user = u_email
                             st.rerun()
                         else: st.error("Access Denied. Check credentials.")
-                    else: st.error("Database Error: Headers not found.")
+                    else: st.error("Database Error: Headers 'email' or 'password' not found.")
                 else:
                     if "@" in u_email and len(u_pass) > 5:
                         code = send_otp(u_email)
@@ -100,58 +96,79 @@ if "user" not in st.session_state:
                             st.session_state.temp = {"e": u_email, "p": u_pass, "c": code}
                             st.session_state.step = "verify"
                             st.rerun()
+                        else: st.error("Email failed. Check App Password.")
                     else: st.error("Enter valid email and 6+ char password.")
 
         elif st.session_state.step == "verify":
             st.warning(f"Verification code sent to {st.session_state.temp['e']}")
             user_code = st.text_input("ENTER 6-DIGIT CODE")
             
-            col_a, col_b = st.columns(2)
-            with col_a:
-                if st.button("COMPLETE REGISTRATION"):
+            v_col1, v_col2 = st.columns(2)
+            with v_col1:
+                if st.button("COMPLETE SIGNUP"):
                     if user_code == st.session_state.temp['c']:
-                        # PASTE YOUR WEB APP URL BELOW
-                        SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwhux-1szSANvsASiyjx5qZHluO3MZnF1uOjnif_lkqDvNtGCfYjilOXcQMnP3zCd1VHA/exec"
+                        # REPLACE WITH YOUR ACTUAL DEPLOYED SCRIPT URL
+                        SCRIPT_URL = "PASTE_YOUR_APPS_SCRIPT_URL_HERE"
                         params = {"email": st.session_state.temp["e"], "password": st.session_state.temp["p"]}
                         try:
                             requests.get(SCRIPT_URL, params=params)
                             st.session_state.user = st.session_state.temp["e"]
-                            st.success("Account Created!")
+                            st.success("Account Live!")
                             time.sleep(1)
                             st.rerun()
-                        except: st.error("Connection error.")
+                        except: st.error("Database Write Failed.")
                     else: st.error("Incorrect code.")
-            
-            with col_b:
+            with v_col2:
                 if st.button("BACK TO LOGIN"):
                     st.session_state.step = "input"
                     st.rerun()
     st.stop()
 
 # --- 4. CHAT INTERFACE ---
-st.sidebar.title(f"@{st.session_state.user.split('@')[0]}")
-if st.sidebar.button("LOGOUT"):
-    del st.session_state.user
-    st.rerun()
+# Initialize session messages with a system prompt to avoid BadRequestError
+if "messages" not in st.session_state or len(st.session_state.messages) == 0:
+    st.session_state.messages = [{"role": "system", "content": "You are Gobidas AI, a helpful, advanced assistant."}]
+
+# Sidebar setup
+with st.sidebar:
+    st.title(f"@{st.session_state.user.split('@')[0]}")
+    st.divider()
+    st.subheader("History & Settings")
+    if st.button("🗑️ Clear History"):
+        st.session_state.messages = [{"role": "system", "content": "You are Gobidas AI."}]
+        st.rerun()
+    
+    st.file_uploader("🖼️ Attach Image (Coming Soon)", type=['png', 'jpg'])
+    st.divider()
+    if st.button("🚪 LOGOUT"):
+        for key in list(st.session_state.keys()): del st.session_state[key]
+        st.rerun()
 
 st.markdown("<h1 class='main-title'>Gobidas AI</h1>", unsafe_allow_html=True)
 
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
+# Display messages (skip system prompt)
 for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+    if message["role"] != "system":
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
 
+# Chat Input
 if prompt := st.chat_input("How can I help?"):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"): st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        resp = client.chat.completions.create(
-            model="llama3-8b-8192",
-            messages=[{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
-        )
-        full_resp = resp.choices[0].message.content
-        st.markdown(full_resp)
-    st.session_state.messages.append({"role": "assistant", "content": full_resp})
+        try:
+            # Preparing payload
+            payload = [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
+            
+            completion = client.chat.completions.create(
+                model="llama3-8b-8192",
+                messages=payload,
+                temperature=0.7
+            )
+            response_text = completion.choices[0].message.content
+            st.markdown(response_text)
+            st.session_state.messages.append({"role": "assistant", "content": response_text})
+        except Exception as e:
+            st.error(f"AI Error: {e}")
