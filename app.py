@@ -1,20 +1,22 @@
 import streamlit as st
-import os, json, base64, requests
+import os, json, base64
 from groq import Groq
 import streamlit.components.v1 as components
 
-# --- 1. CONFIG & KEYS ---
+# --- 1. CONFIG ---
 st.set_page_config(page_title="Gobidas AI", layout="wide")
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
-# You MUST get these from the Google reCAPTCHA Admin Console (v2 Checkbox)
-SITE_KEY = st.secrets.get("RECAPTCHA_SITE_KEY", "YOUR_SITE_KEY_HERE")
+# Use the keys you got from Google
+SITE_KEY = st.secrets.get("RECAPTCHA_SITE_KEY", "PASTE_SITE_KEY_HERE")
 
 USER_DB = "users_db.json"
 
 def load_users():
     if os.path.exists(USER_DB):
-        with open(USER_DB, "r") as f: return json.load(f)
+        try:
+            with open(USER_DB, "r") as f: return json.load(f)
+        except: return {"admin": "gobidas2025"}
     return {"admin": "gobidas2025"}
 
 def save_user(username, password):
@@ -46,66 +48,62 @@ st.markdown(f"""
 if "user" not in st.session_state:
     st.markdown("<h1 class='main-title'>Gobidas</h1>", unsafe_allow_html=True)
     
-    tab1, tab2 = st.tabs(["LOG IN", "CREATE ACCOUNT"])
+    t1, t2 = st.tabs(["LOG IN", "CREATE ACCOUNT"])
     
-    with tab1:
-        u_login = st.text_input("Username", key="l_u")
-        p_login = st.text_input("Password", type="password", key="l_p")
+    with t1:
+        u_l = st.text_input("Username", key="login_u")
+        p_l = st.text_input("Password", type="password", key="login_p")
         if st.button("LOG IN"):
             users = load_users()
-            if u_login in users and users[u_login] == p_login:
-                st.session_state.user = u_login
+            if u_l in users and users[u_l] == p_l:
+                st.session_state.user = u_l
                 st.rerun()
-            else: st.error("Invalid Credentials")
+            else: st.error("Invalid credentials.")
 
-    with tab2:
-        u_sig = st.text_input("New Username", key="s_u")
-        p_sig = st.text_input("New Password", type="password", key="s_p")
+    with t2:
+        u_s = st.text_input("New Username", key="reg_u")
+        p_s = st.text_input("New Password", type="password", key="reg_p")
         
-        # --- OFFICIAL GOOGLE RECAPTCHA V2 ---
         st.write("### Security Check")
-        # This renders the official HTML checkbox from Google's servers
+        # Official Google reCAPTCHA iframe
         captcha_html = f"""
             <script src="https://www.google.com/recaptcha/api.js" async defer></script>
-            <form action="?" method="POST">
-              <div class="g-recaptcha" data-sitekey="{SITE_KEY}" data-callback="captchaCallback"></div>
-            </form>
-            <script>
-              function captchaCallback(response) {{
-                window.parent.postMessage({{type: 'captcha', value: response}}, '*');
-              }}
-            </script>
+            <div class="g-recaptcha" data-sitekey="{SITE_KEY}"></div>
         """
-        components.html(captcha_html, height=100)
-        
-        # Simple verification logic for the launch
+        components.html(captcha_html, height=80)
         is_human = st.checkbox("I have completed the 'I'm not a robot' check above")
         
-        # --- LEGAL ARTICLES ---
         st.markdown("### Legal Agreements")
-        st.markdown("""
-        <div class='legal-box'>
-        <b>Terms of Service:</b> Gobidas AI is an experimental tool. Use at your own risk. 
-        No illegal activities or harmful content generation. <br><br>
-        <b>Privacy Policy:</b> We store your username locally for login. We do not sell data. 
-        History is temporary.
-        </div>
-        """, unsafe_allow_html=True)
-        
+        st.markdown("""<div class='legal-box'>
+        <b>Terms of Service:</b> Gobidas AI is an experimental tool. No illegal use allowed. <br>
+        <b>Privacy Policy:</b> User data is stored for login purposes only.
+        </div>""", unsafe_allow_html=True)
         agree = st.checkbox("I accept the Terms and Privacy Policy")
         
         if st.button("CREATE ACCOUNT"):
-            if not is_human:
-                st.error("Please click the robot check first.")
-            elif not agree:
-                st.warning("You must accept the legal agreements.")
-            elif len(u_sig) < 3:
-                st.error("Username too short.")
+            if not is_human: st.error("Please solve the CAPTCHA.")
+            elif not agree: st.warning("Please accept the terms.")
+            elif len(u_s) < 3 or len(p_s) < 6: st.error("Username/Password too short.")
             else:
-                save_user(u_sig, p_sig)
-                st.success("Account created! Now go to the 'LOG IN' tab.")
+                save_user(u_s, p_s)
+                st.success("Success! Now go to the LOG IN tab.")
     st.stop()
 
-# --- 4. CHAT INTERFACE ---
+# --- 4. CHAT ---
 st.markdown("<h1 class='main-title'>Gobidas AI</h1>", unsafe_allow_html=True)
-# ... [rest of your chat code here]
+
+if "messages" not in st.session_state:
+    st.session_state.messages = [{"role": "system", "content": "You are Gobidas AI."}]
+
+for m in st.session_state.messages:
+    if m["role"] != "system":
+        with st.chat_message(m["role"]): st.markdown(m["content"])
+
+if prompt := st.chat_input("Message Gobidas..."):
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"): st.markdown(prompt)
+
+    with st.chat_message("assistant"):
+        resp = client.chat.completions.create(model="llama3-8b-8192", messages=st.session_state.messages)
+        st.markdown(resp.choices[0].message.content)
+        st.session_state.messages.append({"role": "assistant", "content": resp.choices[0].message.content})
