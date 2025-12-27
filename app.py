@@ -1,99 +1,89 @@
-import streamlit as st
-from groq import Groq
-import json, os, base64, io, time
-import pandas as pd
-from PIL import Image
+import smtplib, random
+from email.mime.text import MIMEText
 from st_gsheets_connection import GSheetsConnection
 
-# --- 1. CONFIG & UI (EXACTLY AS YOU MADE IT) ---
-st.set_page_config(page_title="Gobidas Beta", layout="wide", initial_sidebar_state="expanded")
-
-def get_base64(file):
-    if os.path.exists(file):
-        with open(file, 'rb') as f:
-            return base64.b64encode(f.read()).decode()
-    return None
-
-bin_str = get_base64('background.jpg')
-
-st.markdown(f"""
-<style>
-    [data-testid="stHeader"] {{ background: transparent !important; }}
-    header[data-testid="stHeader"] > div:first-child {{ display: none !important; }}
-    [data-testid="stSidebarCollapseButton"] {{
-        visibility: visible !important;
-        display: block !important;
-        color: #FF6D00 !important;
-        background: rgba(0,0,0,0.8) !important;
-        border: 2px solid #FF6D00 !important;
-        border-radius: 8px !important;
-        z-index: 999999 !important;
-        opacity: 1 !important;
-    }}
-    footer, .stDeployButton, [data-testid="stStatusWidget"] {{ display: none !important; }}
-    [data-testid="stSidebar"] {{ background-color: rgba(10, 10, 10, 0.98) !important; border-right: 2px solid #FF6D00; min-width: 320px !important; }}
-    .stApp {{ background: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), url("data:image/jpeg;base64,{bin_str if bin_str else ''}"); background-size: cover; background-attachment: fixed; }}
-    .main-title {{ font-weight: 900; color: #FF6D00; text-align: center; font-size: 5.5rem; text-shadow: 0px 0px 35px rgba(255, 109, 0, 0.8); margin-top: -60px; }}
-    .stButton>button {{ width: 100%; border-radius: 12px; border: 1px solid #FF6D00 !important; color: white !important; background: transparent; font-weight: 800; text-transform: uppercase; }}
-    .stButton>button:hover {{ background: #FF6D00 !important; color: black !important; }}
-</style>
-""", unsafe_allow_html=True)
-
-# --- 2. PERMANENT DATABASE (GOOGLE SHEETS) ---
+# --- 2. THE PERMANENT VAULT ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 def get_db_df():
     try:
-        # ttl=0 means it always gets the freshest data from the sheet
         return conn.read(ttl=0)
     except:
-        return pd.DataFrame(columns=["username", "password"])
+        # If sheet is empty, create headers
+        return pd.DataFrame(columns=["email", "password"])
 
-def show_legal():
-    st.markdown("## 📜 GOVERNANCE, PRIVACY & LEGAL PROTOCOLS")
-    st.error("### **ARTICLE I: USER ACKNOWLEDGMENT OF BETA STATUS**")
-    st.write("Gobidas is in Beta. Use at your own risk. AI is probabilistic.")
-    st.markdown("### **ARTICLE II: LIMITATION OF LIABILITY**")
-    st.write("Developer is not liable for AI-generated content.")
-    st.markdown("### **ARTICLE III: DATA SOVEREIGNTY**")
-    st.write("Credentials are saved in a secure external vault. History is purged every 30 days.")
+# --- HELPER: SEND OTP CODE ---
+def send_otp(receiver_email):
+    otp_code = str(random.randint(111111, 999999))
+    sender = "gobidasai@gmail.com"
+    # The 'App Password' from Google Secrets
+    app_pwd = st.secrets["EMAIL_PASSWORD"] 
+    
+    msg = MIMEText(f"Your Gobidas Beta Access Code: {otp_code}")
+    msg['Subject'] = "GOBIDAS AUTHENTICATION"
+    msg['From'] = f"Gobidas AI <{sender}>"
+    msg['To'] = receiver_email
 
-# --- 3. LOGIN / SIGN UP (NO DELETIONS) ---
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(sender, app_pwd)
+            server.sendmail(sender, receiver_email, msg.as_string())
+        return otp_code
+    except Exception as e:
+        st.error(f"Email Error: {e}")
+        return None
+
+# --- 3. LOGIN & VERIFICATION (NO USERNAME) ---
 if "user" not in st.session_state:
     st.markdown("<h1 class='main-title'>Gobidas BETA</h1>", unsafe_allow_html=True)
+    
+    if "step" not in st.session_state: st.session_state.step = "input"
+
     c1, c2, c3 = st.columns([1, 1.8, 1])
     with c2:
-        mode = st.radio("GATEWAY ACCESS", ["LOG IN", "SIGN UP"], horizontal=True)
-        u = st.text_input("USERNAME")
-        p = st.text_input("PASSWORD", type="password")
-        agree = st.checkbox("I confirm agreement to the Privacy & Terms")
-        
-        if st.button("ENTER SYSTEM", disabled=not agree):
-            df = get_db_df()
-            if mode == "LOG IN":
-                match = df[(df['username'] == u) & (df['password'] == p)]
-                if not match.empty:
-                    st.session_state.user = u
-                    st.session_state.messages = []
-                    st.rerun()
-                else: st.error("ACCESS DENIED: INCORRECT CREDENTIALS")
-            else:
-                if u and p:
-                    if u in df['username'].values:
-                        st.error("USERNAME ALREADY TAKEN")
-                    else:
-                        # Append to Google Sheet permanently
-                        new_user = pd.DataFrame([{"username": u, "password": p}])
-                        updated_df = pd.concat([df, new_user], ignore_index=True)
-                        conn.update(data=updated_df)
-                        st.success("CREDENTIALS REGISTERED PERMANENTLY. PROCEED TO LOG IN.")
-        st.divider()
-        with st.expander("REVIEW FULL LEGAL DOCUMENTATION"): show_legal()
-    st.stop()
+        if st.session_state.step == "input":
+            mode = st.radio("ACCESS GATE", ["LOG IN", "SIGN UP"], horizontal=True)
+            email_in = st.text_input("EMAIL ADDRESS").lower().strip()
+            pass_in = st.text_input("PASSWORD", type="password")
+            agree = st.checkbox("I agree to the Legal Articles")
 
-# --- 4. SIDEBAR & CHAT ---
-# (Your original Sidebar and Chat logic goes here)
-# Just remember to use st.session_state.user to filter chats!
-st.sidebar.title(f"@{st.session_state.user}")
-st.markdown("<h1 class='main-title'>Gobidas</h1>", unsafe_allow_html=True)
-st.write("Welcome to the Beta launch.")
+            if st.button("PROCEED", disabled=not agree):
+                df = get_db_df()
+                if mode == "LOG IN":
+                    # Checking Email instead of Username
+                    user_match = df[(df['email'] == email_in) & (df['password'] == pass_in)]
+                    if not user_match.empty:
+                        st.session_state.user = email_in
+                        st.rerun()
+                    else: st.error("Account not found or password incorrect.")
+                else:
+                    if "@" in email_in and len(pass_in) > 5:
+                        # Send OTP to verify the new user
+                        code = send_otp(email_in)
+                        if code:
+                            st.session_state.temp_email = email_in
+                            st.session_state.temp_pass = pass_in
+                            st.session_state.sent_otp = code
+                            st.session_state.step = "verify"
+                            st.rerun()
+                    else: st.error("Enter a valid email and 6+ character password.")
+
+        elif st.session_state.step == "verify":
+            st.info(f"Verification code sent to {st.session_state.temp_email}")
+            user_otp = st.text_input("ENTER 6-DIGIT CODE")
+            if st.button("VERIFY & REGISTER"):
+                if user_otp == st.session_state.sent_otp:
+                    df = get_db_df()
+                    if st.session_state.temp_email in df['email'].values:
+                        st.error("This email is already registered.")
+                    else:
+                        # Save to Google Sheet Permanently
+                        new_row = pd.DataFrame([{"email": st.session_state.temp_email, "password": st.session_state.temp_pass}])
+                        updated_df = pd.concat([df, new_row], ignore_index=True)
+                        conn.update(data=updated_df)
+                        st.success("Verified! You can now Log In.")
+                        st.session_state.step = "input"
+                        time.sleep(1.5)
+                        st.rerun()
+                else: st.error("Invalid Code.")
+    st.stop()
