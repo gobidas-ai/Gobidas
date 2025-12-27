@@ -7,7 +7,7 @@ from groq import Groq
 # --- 1. CONFIG & UI ---
 st.set_page_config(page_title="Gobidas AI", layout="wide")
 
-# Replace with your NEW Groq key
+# Client setup
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 def get_base64(file):
@@ -30,17 +30,19 @@ st.markdown(f"""
     .stButton>button {{ width: 100%; border: 2px solid #FF6D00 !important; color: white !important; background: rgba(0,0,0,0.3) !important; font-weight: bold; border-radius: 8px; }}
     .stButton>button:hover {{ background: #FF6D00 !important; color: black !important; }}
     [data-testid="stSidebar"] {{ background-color: #000000 !important; border-right: 1px solid #FF6D00; }}
-    .legal-box {{ font-size: 0.8rem; color: #888; background: rgba(255,109,0,0.05); padding: 15px; border-radius: 5px; border-left: 3px solid #FF6D00; }}
+    .legal-box {{ font-size: 0.8rem; color: #888; background: rgba(255,109,0,0.05); padding: 15px; border-radius: 5px; border-left: 3px solid #FF6D00; margin-bottom: 10px; }}
 </style>
 """, unsafe_allow_html=True)
 
 # --- 2. DATABASE & EMAIL HELPERS ---
 def load_db():
     try:
-        # Pulls the live Google Sheet
         sheet_url = st.secrets["connections"]["gsheets"]["spreadsheet"]
         csv_url = sheet_url.replace("/edit?usp=sharing", "/export?format=csv")
-        return pd.read_csv(csv_url)
+        df = pd.read_csv(csv_url)
+        # Clean column names to prevent KeyError
+        df.columns = df.columns.str.strip().str.lower()
+        return df
     except:
         return pd.DataFrame(columns=["email", "password"])
 
@@ -71,24 +73,26 @@ if "user" not in st.session_state:
             u_email = st.text_input("EMAIL").lower().strip()
             u_pass = st.text_input("PASSWORD", type="password")
             
-            # --- LEGAL ARTICLES SECTION ---
             with st.expander("⚖️ LEGAL ARTICLES & PRIVACY POLICY"):
                 st.markdown("""
                 <div class='legal-box'>
-                <b>Article 1: Data Usage</b><br>Your email is used solely for authentication. We do not sell your data.<br><br>
-                <b>Article 2: AI Conduct</b><br>Gobidas is an experimental AI. Use at your own risk. Do not input sensitive personal info.<br><br>
-                <b>Article 3: User Agreement</b><br>By signing up, you agree to follow the 2025 AI Safety guidelines.
+                <b>Article 1: Data Usage</b><br>Email used for auth only.<br><br>
+                <b>Article 2: AI Conduct</b><br>Experimental AI. Do not share secrets.<br><br>
+                <b>Article 3: User Agreement</b><br>Agree to 2025 AI Safety guidelines.
                 </div>
                 """, unsafe_allow_html=True)
-            agree = st.checkbox("I have read and agree to the Legal Articles")
+            agree = st.checkbox("I agree to the Legal Articles")
 
             if st.button("PROCEED", disabled=not agree):
                 db = load_db()
                 if mode == "LOG IN":
-                    if not db[(db['email'] == u_email) & (db['password'] == u_pass)].empty:
-                        st.session_state.user = u_email
-                        st.rerun()
-                    else: st.error("Access Denied. Check credentials or Sign Up.")
+                    if "email" in db.columns and "password" in db.columns:
+                        match = db[(db['email'] == u_email) & (db['password'] == u_pass)]
+                        if not match.empty:
+                            st.session_state.user = u_email
+                            st.rerun()
+                        else: st.error("Access Denied. Check credentials.")
+                    else: st.error("Database Error: Headers not found.")
                 else:
                     if "@" in u_email and len(u_pass) > 5:
                         code = send_otp(u_email)
@@ -101,22 +105,27 @@ if "user" not in st.session_state:
         elif st.session_state.step == "verify":
             st.warning(f"Verification code sent to {st.session_state.temp['e']}")
             user_code = st.text_input("ENTER 6-DIGIT CODE")
-            if st.button("COMPLETE REGISTRATION"):
-                if user_code == st.session_state.temp['c']:
-                    # --- AUTO-SAVE TO GOOGLE SHEET ---
-                    # Replace with YOUR actual Web App URL from Step 1
-                    SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwhux-1szSANvsASiyjx5qZHluO3MZnF1uOjnif_lkqDvNtGCfYjilOXcQMnP3zCd1VHA/exec"
-                    params = {"email": st.session_state.temp["e"], "password": st.session_state.temp["p"]}
-                    
-                    try:
-                        requests.get(SCRIPT_URL, params=params)
-                        st.success("Account Created Successfully!")
-                        st.session_state.user = st.session_state.temp["e"]
-                        time.sleep(1)
-                        st.rerun()
-                    except:
-                        st.error("Connection error. Please try again.")
-                else: st.error("Incorrect code.")
+            
+            col_a, col_b = st.columns(2)
+            with col_a:
+                if st.button("COMPLETE REGISTRATION"):
+                    if user_code == st.session_state.temp['c']:
+                        # PASTE YOUR WEB APP URL BELOW
+                        SCRIPT_URL = "PASTE_YOUR_APPS_SCRIPT_URL_HERE"
+                        params = {"email": st.session_state.temp["e"], "password": st.session_state.temp["p"]}
+                        try:
+                            requests.get(SCRIPT_URL, params=params)
+                            st.session_state.user = st.session_state.temp["e"]
+                            st.success("Account Created!")
+                            time.sleep(1)
+                            st.rerun()
+                        except: st.error("Connection error.")
+                    else: st.error("Incorrect code.")
+            
+            with col_b:
+                if st.button("BACK TO LOGIN"):
+                    st.session_state.step = "input"
+                    st.rerun()
     st.stop()
 
 # --- 4. CHAT INTERFACE ---
