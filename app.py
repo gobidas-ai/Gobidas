@@ -2,7 +2,7 @@ import streamlit as st
 from groq import Groq
 import json, os, base64, io, time
 
-# --- 1. UI & BACKGROUND ---
+# --- 1. UI & BACKGROUND SETUP ---
 st.set_page_config(page_title="Gobidas Beta", layout="wide")
 
 def get_base64(file):
@@ -10,7 +10,7 @@ def get_base64(file):
         with open(file, 'rb') as f: return base64.b64encode(f.read()).decode()
     except: return ""
 
-# Restoring your background
+# Restoring the background image
 bg_img = get_base64('background.jpg')
 
 st.markdown(f"""
@@ -22,14 +22,14 @@ st.markdown(f"""
         background-attachment: fixed;
     }}
     .main-title {{ font-size: 5rem; color: #FF6D00; text-align: center; font-weight: 900; text-shadow: 2px 2px 10px #000; }}
-    .stButton>button {{ background: transparent; border: 2px solid #FF6D00; color: white; width: 100%; border-radius: 10px; }}
+    .stButton>button {{ background: transparent; border: 2px solid #FF6D00; color: white; width: 100%; border-radius: 10px; font-weight: bold; }}
     .stButton>button:hover {{ background: #FF6D00; color: black; }}
     [data-testid="stSidebar"] {{ background: rgba(0,0,0,0.9) !important; border-right: 2px solid #FF6D00; }}
     .legal-box {{ height: 350px; overflow-y: scroll; background: rgba(0,0,0,0.5); padding: 20px; border: 1px solid #FF6D00; color: #ccc; border-radius: 10px; }}
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. DATABASE ---
+# --- 2. DATABASE SYSTEM ---
 DB_FILE = "gobidas_db.json"
 def load_db():
     if os.path.exists(DB_FILE):
@@ -59,38 +59,38 @@ if "user" not in st.session_state:
         st.markdown("""<div class='legal-box'>
             1. <b>BETA STATUS:</b> This is a testing environment. Data may be cleared without notice.<br><br>
             2. <b>DATA:</b> We store your username and chat history locally for your convenience.<br><br>
-            3. <b>CONTENT:</b> Do not generate illegal, harmful, or toxic content.<br><br>
-            4. <b>ACCURACY:</b> AI can hallucinate. Do not rely on it for medical or legal advice.<br><br>
+            3. <b>CONTENT:</b> Do not generate illegal or harmful content.<br><br>
+            4. <b>LLAMA 4:</b> We use Llama 4 Scout and Maverick models. AI can make mistakes.<br><br>
             5. <b>PRIVACY:</b> We do not sell your data to third parties.
         </div>""", unsafe_allow_html=True)
         
-        if st.button("Enter") if st.checkbox("I agree to the terms") else st.button("Enter", disabled=True):
+        if st.button("Enter") if st.checkbox("I agree") else st.button("Enter", disabled=True):
             db = st.session_state.db
             if mode == "Log in":
                 if u in db["users"] and db["users"][u] == p:
                     st.session_state.user = u
                     st.session_state.messages = []
                     st.rerun()
-                else: st.error("Wrong Username or Password.")
+                else: st.error("Wrong info.")
             else:
                 if u and p:
                     db["users"][u] = p
                     db["history"][u] = []
                     save_db(db)
-                    st.success("Account created! You can now Log in.")
+                    st.success("Account created! Log in now.")
     st.stop()
 
-# --- 4. CHAT ENGINE (NO LLAMA) ---
+# --- 4. CHAT INTERFACE (LLAMA 4) ---
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 with st.sidebar:
-    st.write(f"Logged in as: **{st.session_state.user}**")
+    st.write(f"Active User: **{st.session_state.user}**")
     if st.button("New Chat"):
         st.session_state.messages = []
         st.session_state.active_idx = None
         st.rerun()
     
-    img_file = st.file_uploader("Upload Image for AI", type=['png', 'jpg', 'jpeg'])
+    img_file = st.file_uploader("Upload Image", type=['png', 'jpg', 'jpeg'])
     
     st.divider()
     st.write("### History")
@@ -112,7 +112,7 @@ for m in st.session_state.messages:
         st.markdown(m["content"])
         if "img" in m: st.image(f"data:image/jpeg;base64,{m['img']}", width=400)
 
-if prompt := st.chat_input("Message Gobidas..."):
+if prompt := st.chat_input("Ask Llama 4..."):
     entry = {"role": "user", "content": prompt}
     b64 = None
     if img_file:
@@ -126,28 +126,37 @@ if prompt := st.chat_input("Message Gobidas..."):
 
     with st.chat_message("assistant"):
         try:
-            # Using Mixtral-8x7b-32768 (NO LLAMA)
-            # Note: For real vision, Groq currently requires specific vision models. 
-            # I am using Mixtral as the primary text engine to avoid Llama.
-            res = client.chat.completions.create(
-                model="mixtral-8x7b-32768",
-                messages=[{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
-            )
+            if b64:
+                # LLAMA 4 SCOUT VISION LOGIC
+                res = client.chat.completions.create(
+                    model="llama-4-scout-vision",
+                    messages=[{
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
+                        ]
+                    }]
+                )
+            else:
+                # LLAMA 4 MAVERICK TEXT LOGIC
+                res = client.chat.completions.create(
+                    model="llama-4-maverick",
+                    messages=[{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
+                )
             
             ans = res.choices[0].message.content
             st.markdown(ans)
             st.session_state.messages.append({"role": "assistant", "content": ans})
             
-            # Save to JSON
+            # Save History (Fixes JSON bytes error)
             hist = st.session_state.db["history"].get(st.session_state.user, [])
             chat_obj = {"name": prompt[:20], "msgs": st.session_state.messages}
-            
             if st.session_state.get("active_idx") is None:
                 hist.append(chat_obj)
                 st.session_state.active_idx = len(hist) - 1
             else:
                 hist[st.session_state.active_idx] = chat_obj
-            
             st.session_state.db["history"][st.session_state.user] = hist
             save_db(st.session_state.db)
         except Exception as e:
