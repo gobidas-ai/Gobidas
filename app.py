@@ -2,9 +2,8 @@ import streamlit as st
 from groq import Groq
 import json, os, base64, io, time
 from PIL import Image
-import streamlit.components.v1 as components
 
-# --- 1. UI & TOTAL STEALTH STYLE ---
+# --- 1. UI & STYLE ---
 st.set_page_config(page_title="Gobidas Beta", layout="wide")
 
 def get_base64(file):
@@ -141,8 +140,8 @@ st.markdown("<h1 class='main-title'>Gobidas</h1>", unsafe_allow_html=True)
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
-        if "img_tag" in msg:
-            st.markdown(msg["img_tag"])
+        if "gen_img_url" in msg:
+            st.image(msg["gen_img_url"])
 
 if prompt := st.chat_input("Command Gobidas..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
@@ -151,22 +150,25 @@ if prompt := st.chat_input("Command Gobidas..."):
         if img_file: st.image(img_file, width=300)
 
     with st.chat_message("assistant"):
-        # Image Generation Logic
-        if any(word in prompt.lower() for word in ["generate image", "draw", "create image", "make an image"]):
-            img_tag = f"
-
-[Image of {prompt}]
-"
-            st.markdown(f"Generating your request: **{prompt}**")
-            st.markdown(img_tag)
+        # Logic to check if user wants to generate an image
+        trigger_words = ["generate image", "draw", "create image", "make an image", "generate an image"]
+        if any(word in prompt.lower() for word in trigger_words):
+            clean_prompt = prompt.lower()
+            for word in trigger_words:
+                clean_prompt = clean_prompt.replace(word, "")
+            
+            gen_url = f"https://pollinations.ai/p/{clean_prompt.replace(' ', '_')}?width=1024&height=1024&seed={time.time()}&nologo=true"
+            st.markdown(f"**Generating your request...**")
+            st.image(gen_url)
             st.session_state.messages.append({
                 "role": "assistant", 
                 "content": f"I have generated the image for: {prompt}",
-                "img_tag": img_tag
+                "gen_img_url": gen_url
             })
         else:
             try:
                 if img_file:
+                    # SCOUT (VISION)
                     img = Image.open(img_file).convert("RGB")
                     img.thumbnail((800, 800))
                     buf = io.BytesIO()
@@ -177,6 +179,7 @@ if prompt := st.chat_input("Command Gobidas..."):
                         messages=[{"role": "user", "content": [{"type": "text", "text": prompt}, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}]}]
                     )
                 else:
+                    # MAVERICK (TEXT)
                     res = client.chat.completions.create(
                         model="meta-llama/llama-4-maverick-17b-128e-instruct",
                         messages=[{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
