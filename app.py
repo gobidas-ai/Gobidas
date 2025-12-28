@@ -14,10 +14,10 @@ def get_base64(file):
     except: return ""
 
 bin_str = get_base64('background.jpg')
-# Get Base64 for the secret files to ensure they load in the overlay
 secret_img_b64 = get_base64('secret_image.png')
 secret_audio_b64 = get_base64('secret_music.mp3')
 
+# Main CSS and the Hidden Overlay
 st.markdown(f"""
 <style>
     header, [data-testid="stHeader"], .stDeployButton, [data-testid="stToolbar"], 
@@ -51,7 +51,7 @@ st.markdown(f"""
         font-size: 0.8rem; color: #999; height: 250px; overflow-y: scroll; border: 1px solid rgba(255,109,0,0.2);
     }}
 
-    /* --- SECRET OVERLAY CSS --- */
+    /* SECRET OVERLAY */
     #easterEggOverlay {{
         display: none;
         position: fixed;
@@ -67,7 +67,7 @@ st.markdown(f"""
     #goBackBtn {{
         display: block; margin: 20px auto; padding: 15px 30px;
         font-size: 20px; cursor: pointer; background: white;
-        border: 2px solid black; font-weight: bold;
+        border: 2px solid black; font-weight: bold; color: black;
     }}
 </style>
 
@@ -81,16 +81,16 @@ st.markdown(f"""
 </audio>
 
 <script>
-    function activateEasterEgg() {{
+    window.activateEasterEgg = function() {{
         document.getElementById('easterEggOverlay').style.display = 'block';
         document.getElementById('secretAudio').play();
-    }}
-    function stopEasterEgg() {{
+    }};
+    window.stopEasterEgg = function() {{
         document.getElementById('easterEggOverlay').style.display = 'none';
         var audio = document.getElementById('secretAudio');
         audio.pause();
         audio.currentTime = 0;
-    }}
+    }};
 </script>
 """, unsafe_allow_html=True)
 
@@ -153,9 +153,9 @@ client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 with st.sidebar:
     st.write(f"Logged in as: **{st.session_state.user}**")
     
-    # --- SETTINGS & SECRET SECTION ---
+    # --- UPDATED SECRET SECTION ---
     with st.expander("⚙️ Settings"):
-        if st.button("SECRET DONT OPEN", type="primary"):
+        if st.button("SECRET DONT OPEN", type="primary", key="secret_btn"):
             components.html("""
                 <script>
                     window.parent.activateEasterEgg();
