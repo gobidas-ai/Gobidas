@@ -1,7 +1,6 @@
 import streamlit as st
 from groq import Groq
 import json, os, base64, io, time
-import requests
 from PIL import Image
 
 # --- 1. UI & STYLE ---
@@ -142,7 +141,8 @@ for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
         if "image_url" in msg:
-            st.image(msg["image_url"], caption="Nano Banana Output")
+            st.image(msg["image_url"])
+            st.markdown(f"[🔗 Open Full Image]({msg['image_url']})")
 
 if prompt := st.chat_input("Command Gobidas..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
@@ -151,23 +151,26 @@ if prompt := st.chat_input("Command Gobidas..."):
         if img_file: st.image(img_file, width=300)
 
     with st.chat_message("assistant"):
-        trigger_words = ["generate image", "draw", "create image", "make an image", "generate an image", "generate me a", "generate me an"]
+        trigger_words = ["generate image", "draw", "create image", "make an image", "generate an image", "generate a", "show me a"]
         
         if any(word in prompt.lower() for word in trigger_words):
-            with st.spinner("Nano Banana Engines are spooling..."):
+            with st.spinner("Nano Banana is generating... 🔄"):
                 clean_prompt = prompt.lower()
                 for word in trigger_words:
                     clean_prompt = clean_prompt.replace(word, "")
                 
-                # Using direct URL with a timestamp seed to bypass cache/PIL errors
+                # Create the URL
                 seed = int(time.time())
                 gen_url = f"https://pollinations.ai/p/{clean_prompt.strip().replace(' ', '_')}?width=1024&height=1024&seed={seed}&nologo=true"
                 
-                st.image(gen_url, caption=f"Result for: {clean_prompt.strip()}")
+                # Show in UI
+                st.markdown(f"### Result for: {clean_prompt.strip()}")
+                st.image(gen_url)
+                st.markdown(f"### [🚀 CLICK HERE TO VIEW/DOWNLOAD IMAGE]({gen_url})")
                 
                 st.session_state.messages.append({
                     "role": "assistant", 
-                    "content": f"I have visualized your request: {prompt}",
+                    "content": f"I have generated the image for you.",
                     "image_url": gen_url
                 })
         else:
@@ -191,7 +194,7 @@ if prompt := st.chat_input("Command Gobidas..."):
                 st.markdown(ans)
                 st.session_state.messages.append({"role": "assistant", "content": ans})
             except Exception as e:
-                st.error(f"Inference Error: {e}")
+                st.error(f"Error: {e}")
         
         # Save to DB
         hist = st.session_state.db["history"].get(st.session_state.user, [])
