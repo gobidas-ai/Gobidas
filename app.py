@@ -3,22 +3,31 @@ from groq import Groq
 import json, os, base64, io, time
 from PIL import Image
 
-# --- 1. UI & LAYOUT ---
+# --- 1. UI & TOTAL STEALTH STYLE ---
 st.set_page_config(page_title="Gobidas Beta", layout="wide", initial_sidebar_state="expanded")
 
 def get_base64(file):
     try:
-        with open(file, 'rb') as f:
-            data = f.read()
-        return base64.b64encode(data).decode()
-    except:
-        return ""
+        with open(file, 'rb') as f: return base64.b64encode(f.read()).decode()
+    except: return ""
 
 bin_str = get_base64('background.jpg')
 
-# Header and Sidebar controls are now RESTORED (visibility: visible)
 st.markdown(f"""
 <style>
+    /* HIDE WATERMARK, PROFILE, AND HEADER */
+    #MainMenu, footer, [data-testid="stStatusWidget"], .stDeployButton, [data-testid="stToolbar"] {{
+        visibility: hidden !important; display: none !important;
+    }}
+    
+    /* RESTORE ONLY THE SIDEBAR OPENER */
+    [data-testid="collapsedControl"] {{
+        visibility: visible !important;
+        background: rgba(255, 109, 0, 0.4) !important;
+        border-radius: 8px;
+        margin: 10px;
+    }}
+
     .stApp {{
         background: linear-gradient(rgba(0,0,0,0.65), rgba(0,0,0,0.85)), 
                     url("data:image/jpeg;base64,{bin_str}");
@@ -38,40 +47,22 @@ st.markdown(f"""
     .stButton>button {{
         width: 100%; border-radius: 12px; background: transparent !important;
         color: white !important; border: 2px solid #FF6D00 !important;
-        font-weight: 600; transition: 0.3s all ease-in-out;
-    }}
-    
-    .stButton>button:hover:not(:disabled) {{
-        background: #FF6D00 !important; box-shadow: 0px 0px 30px rgba(255, 109, 0, 0.9);
-        color: black !important;
-    }}
-    
-    .stChatMessage {{
-        background: rgba(255, 255, 255, 0.07) !important; backdrop-filter: blur(15px);
-        border-radius: 20px !important; border: 1px solid rgba(255, 109, 0, 0.3) !important;
+        font-weight: 600;
     }}
 
     .legal-box {{
-        font-size: 0.85rem; color: #ccc; background: rgba(255,109,0,0.1); 
-        padding: 15px; border-radius: 10px; border: 1px solid #FF6D00; 
-        height: 250px; overflow-y: scroll;
+        font-size: 0.8rem; color: #bbb; background: rgba(255,109,0,0.05); 
+        padding: 15px; border-radius: 8px; border: 1px solid rgba(255,109,0,0.3);
     }}
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. STORAGE & AUTO-DELETE ---
+# --- 2. STORAGE ---
 DB_FILE = "gobidas_db.json"
 def load_db():
     if os.path.exists(DB_FILE):
         try:
-            with open(DB_FILE, "r") as f: 
-                data = json.load(f)
-                now = time.time()
-                cutoff = 30 * 24 * 60 * 60 
-                if "history" in data:
-                    for user in data["history"]:
-                        data["history"][user] = [c for c in data["history"][user] if (now - c.get("timestamp", now)) < cutoff]
-                return data
+            with open(DB_FILE, "r") as f: return json.load(f)
         except: pass
     return {"users": {}, "history": {}}
 
@@ -81,46 +72,24 @@ def save_db(data):
 if "db" not in st.session_state:
     st.session_state.db = load_db()
 
-# --- 3. LEGAL CONTENT ---
-def show_legal_content():
-    st.markdown("<div class='legal-box'>", unsafe_allow_html=True)
-    st.write("### Terms of Service & Privacy Policy")
-    st.warning("**BETA NOTICE:** Gobidas AI is in development. Expect hallucinations.")
-    st.write("**1. Liability:** The developer is not responsible for AI output.")
-    st.write("**2. Privacy:** Data is stored locally and auto-deleted every 30 days.")
-    st.write("**3. Usage:** No illegal or harmful prompts allowed.")
-    st.markdown("</div>", unsafe_allow_html=True)
-
-# --- 4. SIDEBAR ---
-if "show_settings" not in st.session_state: st.session_state.show_settings = False
-
+# --- 3. SIDEBAR ---
 with st.sidebar:
-    if st.button("⚙️"):
-        st.session_state.show_settings = not st.session_state.show_settings
-    
-    if st.session_state.show_settings:
-        st.markdown("### Settings")
-        with st.expander("Privacy and Terms"):
-            show_legal_content()
-        if st.button("Close Settings"):
-            st.session_state.show_settings = False
-            st.rerun()
-    
+    st.markdown("### Gobidas Settings")
     if "user" in st.session_state:
-        st.markdown(f"### User: {st.session_state.user}")
+        st.markdown(f"**Current User:** {st.session_state.user}")
         if st.button("➕ New Chat"):
             st.session_state.messages = []
             st.session_state.active_idx = None
             st.rerun()
         
         st.divider()
-        img_file = st.file_uploader("Upload Image", type=['png', 'jpg', 'jpeg'])
+        img_file = st.file_uploader("Attach Image", type=['png', 'jpg', 'jpeg'])
         
         st.divider()
-        st.write("Recent History")
+        st.write("Chat History")
         logs = st.session_state.db["history"].get(st.session_state.user, [])
         for i, log in enumerate(reversed(logs)):
-            if st.button(f"💬 {log.get('name', 'Chat')[:20]}...", key=f"h_{i}"):
+            if st.button(f"💬 {log.get('name', 'Chat')[:20]}", key=f"h_{i}"):
                 st.session_state.messages = log.get("msgs", [])
                 st.session_state.active_idx = len(logs) - 1 - i
                 st.rerun()
@@ -129,50 +98,46 @@ with st.sidebar:
             del st.session_state.user
             st.rerun()
 
-# --- 5. LOGIN LOGIC ---
+# --- 4. LOGIN SCREEN (With Terms) ---
 if "user" not in st.session_state:
     st.markdown("<h1 class='main-title'>Gobidas</h1>", unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1, 1.5, 1])
     with c2:
         mode = st.radio(" ", ["Log In", "Sign Up"], horizontal=True)
-        u = st.text_input("Username")
+        u = st.text_input("Name")
         p = st.text_input("Password", type="password")
-        st.caption("By entering, you accept our Terms and Privacy.")
-        agree = st.checkbox("I agree to the Terms")
         
-        if st.button("Enter System", disabled=not agree):
+        st.markdown("### Terms & Privacy")
+        st.markdown("<div class='legal-box'>By logging in, you agree that chat data is stored for 30 days. The AI may generate incorrect info. No illegal prompts allowed.</div>", unsafe_allow_html=True)
+        agree = st.checkbox("I agree to the Terms and Privacy Policy")
+        
+        if st.button("Enter", disabled=not agree):
             if mode == "Log In":
                 if u in st.session_state.db["users"] and st.session_state.db["users"][u] == p:
                     st.session_state.user = u
                     st.session_state.messages = []
                     st.rerun()
-                else: st.error("Access Denied.")
+                else: st.error("Wrong credentials.")
             else:
                 if u and p:
                     st.session_state.db["users"][u] = p
                     st.session_state.db["history"][u] = []
                     save_db(st.session_state.db)
-                    st.success("Account Created! Now Log In.")
+                    st.success("Account created! Log In now.")
     st.stop()
 
-# --- 6. CHAT INTERFACE ---
+# --- 5. CHAT LOGIC (Using NEW Llama 3.2 90B Vision) ---
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 st.markdown("<h1 class='main-title'>Gobidas AI</h1>", unsafe_allow_html=True)
 
-# Display Messages
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
-        if "image" in msg:
-            st.image(msg["image"], width=300)
+        if "image" in msg: st.image(msg["image"], width=300)
 
-# Input
 if prompt := st.chat_input("Ask Gobidas..."):
     msg_entry = {"role": "user", "content": prompt}
-    
-    if img_file:
-        msg_entry["image"] = img_file.getvalue()
-
+    if img_file: msg_entry["image"] = img_file.getvalue()
     st.session_state.messages.append(msg_entry)
     
     with st.chat_message("user"):
@@ -182,14 +147,16 @@ if prompt := st.chat_input("Ask Gobidas..."):
     with st.chat_message("assistant"):
         try:
             if img_file:
+                # Process Image for Vision Model
                 img = Image.open(img_file).convert("RGB")
                 img.thumbnail((800, 800))
                 buf = io.BytesIO()
                 img.save(buf, format="JPEG")
                 b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
                 
+                # Switch to the non-decommissioned Vision Model
                 res = client.chat.completions.create(
-                    model="llama-3.2-11b-vision-preview",
+                    model="llama-3.2-90b-vision-preview",
                     messages=[{"role": "user", "content": [
                         {"type": "text", "text": prompt},
                         {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
@@ -207,7 +174,7 @@ if prompt := st.chat_input("Ask Gobidas..."):
             
             # Save History
             hist = st.session_state.db["history"].get(st.session_state.user, [])
-            chat_summary = {"name": prompt[:30], "msgs": st.session_state.messages, "timestamp": time.time()}
+            chat_summary = {"name": prompt[:25], "msgs": st.session_state.messages, "timestamp": time.time()}
             
             if st.session_state.get("active_idx") is None:
                 hist.append(chat_summary)
@@ -215,8 +182,6 @@ if prompt := st.chat_input("Ask Gobidas..."):
                 st.session_state.active_idx = len(hist) - 1
             else:
                 st.session_state.db["history"][st.session_state.user][st.session_state.active_idx] = chat_summary
-            
             save_db(st.session_state.db)
-            
         except Exception as e:
             st.error(f"System Error: {e}")
