@@ -11,13 +11,15 @@ def get_base64(file):
     try:
         with open(file, 'rb') as f:
             return base64.b64encode(f.read()).decode()
-    except: return ""
+    except Exception as e:
+        return ""
 
+# Pre-loading assets to embed them directly in the HTML
 bin_str = get_base64('background.jpg')
 secret_img_b64 = get_base64('secret_image.png')
 secret_audio_b64 = get_base64('secret_music.mp3')
 
-# Main CSS and the Hidden Overlay
+# Main CSS and Hidden Overlay Logic
 st.markdown(f"""
 <style>
     header, [data-testid="stHeader"], .stDeployButton, [data-testid="stToolbar"], 
@@ -33,41 +35,43 @@ st.markdown(f"""
         font-weight: 900; color: #FF6D00; text-align: center; font-size: 5rem;
         text-shadow: 0px 0px 20px rgba(255, 109, 0, 0.5); margin-bottom: 5px;
     }}
-    .welcome-msg {{ text-align: center; color: #aaa; font-size: 1.1rem; margin-bottom: 30px; }}
     
-    /* CUSTOM BUTTON STYLE */
-    .stButton>button {{
-        width: 100%; border-radius: 10px; background: transparent !important;
-        color: white !important; border: 1px solid #FF6D00 !important;
-        font-weight: 600; transition: 0.2s all; height: 3em;
-    }}
-    .stButton>button:hover {{
-        background: #FF6D00 !important; color: black !important;
-    }}
-
-    /* SECRET OVERLAY - HIGHEST Z-INDEX */
+    /* THE SECRET OVERLAY */
     #easterEggOverlay {{
         display: none;
         position: fixed;
         top: 0; left: 0;
-        width: 100%; height: 100%;
+        width: 100vw; height: 100vh;
         background-color: #ff8c00;
-        z-index: 9999999 !important;
+        z-index: 1000000;
         text-align: center;
     }}
     #easterEggOverlay img {{
-        max-height: 80vh; max-width: 90%; margin-top: 5vh;
+        max-height: 80vh; max-width: 90%; margin-top: 5vh; border: 5px solid white;
     }}
     #goBackBtn {{
         display: block; margin: 20px auto; padding: 15px 30px;
         font-size: 20px; cursor: pointer; background: white;
         border: 2px solid black; font-weight: bold; color: black;
     }}
+
+    /* CUSTOM SIDEBAR BUTTON */
+    .secret-trigger-btn {{
+        background-color: red !important;
+        color: white !important;
+        width: 100%;
+        border: none;
+        padding: 10px;
+        font-weight: bold;
+        cursor: pointer;
+        border-radius: 5px;
+        margin-top: 10px;
+    }}
 </style>
 
 <div id="easterEggOverlay">
     <img src="data:image/png;base64,{secret_img_b64}">
-    <button id="goBackBtn" onclick="document.getElementById('easterEggOverlay').style.display='none'; document.getElementById('secretAudio').pause();">,, GO BACK"</button>
+    <button id="goBackBtn" onclick="stopSecret()">,, GO BACK"</button>
 </div>
 
 <audio id="secretAudio" loop>
@@ -75,11 +79,19 @@ st.markdown(f"""
 </audio>
 
 <script>
-    // Direct function attached to window
-    window.activateMeme = function() {{
-        document.getElementById('easterEggOverlay').style.display = 'block';
-        document.getElementById('secretAudio').play();
-    }};
+    function startSecret() {{
+        const overlay = window.parent.document.getElementById('easterEggOverlay');
+        const audio = window.parent.document.getElementById('secretAudio');
+        overlay.style.display = 'block';
+        audio.play().catch(e => console.log("Audio play blocked, click page first"));
+    }}
+
+    function stopSecret() {{
+        document.getElementById('easterEggOverlay').style.display = 'none';
+        const audio = document.getElementById('secretAudio');
+        audio.pause();
+        audio.currentTime = 0;
+    }}
 </script>
 """, unsafe_allow_html=True)
 
@@ -92,64 +104,49 @@ def load_db():
         except: pass
     return {"users": {}, "history": {}}
 
-def save_db(data):
-    with open(DB_FILE, "w") as f: json.dump(data, f)
-
 if "db" not in st.session_state:
     st.session_state.db = load_db()
 
 # --- 3. LOGIN PAGE ---
 if "user" not in st.session_state:
     st.markdown("<h1 class='main-title'>GOBIDAS</h1>", unsafe_allow_html=True)
-    st.markdown("<p class='welcome-msg'>Secure access to Llama 4 Scout & Maverick</p>", unsafe_allow_html=True)
-    
     _, col, _ = st.columns([1, 1.2, 1])
     with col:
-        mode = st.radio("Access Mode", ["Log In", "Sign Up"], horizontal=True, label_visibility="collapsed")
-        u = st.text_input("Username", placeholder="Username")
-        p = st.text_input("Password", type="password", placeholder="Password")
-        agree = st.checkbox("I agree to the terms and privacy policy")
-        
-        if st.button("ENTER", disabled=not agree):
-            db = st.session_state.db
-            if mode == "Log In":
-                if u in db["users"] and db["users"][u] == p:
-                    st.session_state.user = u
-                    st.session_state.messages = []
-                    st.rerun()
-                else: st.error("Invalid Username or Password")
-            else:
-                if u and p:
-                    db["users"][u] = p
-                    db["history"][u] = []
-                    save_db(db)
-                    st.success("Account created! Switch to Log In.")
+        u = st.text_input("Username")
+        p = st.text_input("Password", type="password")
+        if st.button("ENTER"):
+            if u in st.session_state.db["users"] and st.session_state.db["users"][u] == p:
+                st.session_state.user = u
+                st.session_state.messages = []
+                st.rerun()
     st.stop()
 
 # --- 4. SIDEBAR ---
-client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 with st.sidebar:
     st.write(f"Logged in as: **{st.session_state.user}**")
-    if st.button("New Chat"):
-        st.session_state.messages = []
-        st.session_state.active_idx = None
-        st.rerun()
-    st.divider()
-    img_file = st.file_uploader("Image Upload (Vision)", type=['png', 'jpg', 'jpeg'])
-    st.divider()
+    
+    # SETTINGS WITH THE ACTUAL WORKING BUTTON
+    with st.expander("⚙️ Settings"):
+        components.html("""
+            <button class="secret-trigger-btn" onclick="parent.startSecret()">
+                SECRET DONT OPEN
+            </button>
+            <style>
+                .secret-trigger-btn {
+                    background-color: red; color: white; width: 100%;
+                    border: none; padding: 12px; font-weight: bold;
+                    cursor: pointer; border-radius: 5px;
+                }
+            </style>
+        """, height=50)
+
     if st.button("Sign Out"):
         del st.session_state.user
         st.rerun()
 
-# --- 5. MAIN CHAT & SECRET BUTTON ---
+# --- 5. MAIN CHAT ---
 st.markdown("<h1 class='main-title'>GOBIDAS</h1>", unsafe_allow_html=True)
-
-# THE SECRET BUTTON (Placed at the top of the chat area)
-col1, col2 = st.columns([8, 2])
-with col2:
-    with st.expander("⚙️ Settings"):
-        if st.button("SECRET DONT OPEN", type="primary"):
-            components.html("<script>window.parent.activateMeme();</script>", height=0)
+client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 for m in st.session_state.messages:
     with st.chat_message(m["role"]):
@@ -159,16 +156,12 @@ if prompt := st.chat_input("Ask Gobidas..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
-        if img_file: st.image(img_file, width=300)
 
     with st.chat_message("assistant"):
-        try:
-            res = client.chat.completions.create(
-                model="meta-llama/llama-4-maverick-17b-128e-instruct",
-                messages=[{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
-            )
-            ans = res.choices[0].message.content
-            st.markdown(ans)
-            st.session_state.messages.append({"role": "assistant", "content": ans})
-        except Exception as e:
-            st.error(f"Error: {e}")
+        res = client.chat.completions.create(
+            model="meta-llama/llama-4-maverick-17b-128e-instruct",
+            messages=[{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
+        )
+        ans = res.choices[0].message.content
+        st.markdown(ans)
+        st.session_state.messages.append({"role": "assistant", "content": ans})
