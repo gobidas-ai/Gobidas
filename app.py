@@ -3,7 +3,7 @@ from groq import Groq
 import json, os, base64, io, time
 from PIL import Image
 
-# --- 1. UI & STEALTH HEADER STYLE ---
+# --- 1. UI SETUP & STYLE ---
 st.set_page_config(page_title="Gobidas Beta", layout="wide", initial_sidebar_state="expanded")
 
 def get_base64(file):
@@ -15,56 +15,26 @@ bin_str = get_base64('background.jpg')
 
 st.markdown(f"""
 <style>
-    /* 1. RESTORE HEADER BUT HIDE GITHUB ICON ONLY */
-    header[data-testid="stHeader"] {{
-        visibility: visible !important;
-        background: rgba(0,0,0,0.5) !important;
-    }}
-    
-    /* Target the specific GitHub icon button in the header */
-    .stApp a[href*="github.com"], 
-    .stApp [data-testid="stHeader"] svg[viewBox*="github"],
-    [data-testid="stHeaderActionElements"] button:has(svg[viewBox*="0 0 16 16"]) {{
-        display: none !important;
-        visibility: hidden !important;
-    }}
+    header[data-testid="stHeader"] {{ visibility: visible !important; background: rgba(0,0,0,0.5) !important; }}
+    .stApp a[href*="github.com"], .stApp [data-testid="stHeader"] svg[viewBox*="github"] {{ display: none !important; }}
+    footer, [data-testid="stStatusWidget"], [data-testid="stManageAppButton"] {{ display: none !important; }}
 
-    /* 2. HIDE STREAMLIT WATERMARK & PROFILE ICON (Bottom Right) */
-    footer, [data-testid="stStatusWidget"], [data-testid="stManageAppButton"] {{
-        visibility: hidden !important;
-        display: none !important;
-    }}
-
-    /* 3. APP BACKGROUND & SIDEBAR */
     .stApp {{
         background: linear-gradient(rgba(0,0,0,0.65), rgba(0,0,0,0.85)), 
                     url("data:image/jpeg;base64,{bin_str}");
         background-size: cover; background-position: center; background-attachment: fixed;
     }}
     
-    [data-testid="stSidebar"] {{
-        background: rgba(0, 0, 0, 0.95) !important;
-        backdrop-filter: blur(25px); border-right: 2px solid #FF6D00;
-    }}
+    [data-testid="stSidebar"] {{ background: rgba(0, 0, 0, 0.95) !important; border-right: 2px solid #FF6D00; }}
+    .main-title {{ font-weight: 900; color: #FF6D00; text-align: center; font-size: 5rem; }}
     
-    .main-title {{
-        font-weight: 900; color: #FF6D00; text-align: center; font-size: 5rem;
-        text-shadow: 0px 0px 25px rgba(255, 109, 0, 0.6);
-    }}
-    
-    .stButton>button {{
-        width: 100%; border-radius: 12px; background: transparent !important;
-        color: white !important; border: 2px solid #FF6D00 !important;
-    }}
-
-    .legal-box {{
-        font-size: 0.8rem; color: #bbb; background: rgba(255,109,0,0.1); 
-        padding: 15px; border-radius: 8px; border: 1px solid rgba(255,109,0,0.4);
-    }}
+    .stButton>button {{ width: 100%; border-radius: 12px; border: 2px solid #FF6D00 !important; color: white !important; background: transparent !important; }}
+    .legal-box {{ font-size: 0.85rem; color: #ccc; background: rgba(255,109,0,0.1); padding: 20px; border-radius: 10px; border: 1px solid #FF6D00; line-height: 1.6; }}
+    .welcome-card {{ background: rgba(255, 255, 255, 0.1); padding: 25px; border-radius: 15px; border-left: 5px solid #FF6D00; margin-bottom: 20px; }}
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. STORAGE SYSTEM ---
+# --- 2. DATA STORAGE ---
 DB_FILE = "gobidas_db.json"
 def load_db():
     if os.path.exists(DB_FILE):
@@ -79,59 +49,87 @@ def save_db(data):
 if "db" not in st.session_state:
     st.session_state.db = load_db()
 
-# --- 3. SIDEBAR NAVIGATION ---
+# --- 3. SIDEBAR ---
 with st.sidebar:
-    st.markdown("### Gobidas Controls")
+    st.title("Settings")
     if "user" in st.session_state:
-        st.markdown(f"👤 **User:** {st.session_state.user}")
-        if st.button("➕ New Chat"):
+        st.write(f"Logged in as: **{st.session_state.user}**")
+        if st.button("New Chat"):
             st.session_state.messages = []
             st.session_state.active_idx = None
             st.rerun()
         
         st.divider()
-        img_file = st.file_uploader("🖼️ Attach Image", type=['png', 'jpg', 'jpeg'])
+        img_file = st.file_uploader("Upload Image", type=['png', 'jpg', 'jpeg'])
         
         st.divider()
-        st.write("📂 History")
+        st.subheader("History")
         logs = st.session_state.db["history"].get(st.session_state.user, [])
         for i, log in enumerate(reversed(logs)):
-            if st.button(f"💬 {log.get('name', 'Chat')[:20]}", key=f"h_{i}"):
+            if st.button(f"Chat: {log.get('name', 'Conversation')[:15]}...", key=f"h_{i}"):
                 st.session_state.messages = log.get("msgs", [])
                 st.session_state.active_idx = len(logs) - 1 - i
                 st.rerun()
         
-        if st.button("🚪 Logout"):
+        if st.button("Log out"):
             del st.session_state.user
             st.rerun()
 
-# --- 4. LOGIN & TERMS SCREEN ---
+# --- 4. LOGIN & TERMS ---
 if "user" not in st.session_state:
     st.markdown("<h1 class='main-title'>Gobidas</h1>", unsafe_allow_html=True)
-    c1, c2, c3 = st.columns([1, 1.5, 1])
-    with c2:
-        mode = st.radio(" ", ["Log In", "Sign Up"], horizontal=True)
-        u = st.text_input("Username")
-        p = st.text_input("Password", type="password")
-        st.markdown("<div class='legal-box'>Data stored for 30 days. No illegal prompts.</div>", unsafe_allow_html=True)
-        agree = st.checkbox("I agree to the Terms")
+    
+    st.markdown("""
+    <div class='welcome-card'>
+        <h3>Welcome!</h3>
+        <p>Currently our website is still in beta (not in the final version yet) so you might experience loss of data (losing your user). 
+        Thank you for using our AI and we hope you will like Gobidas! Have fun!</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        tab1, tab2 = st.tabs(["Log in", "Sign up"])
         
-        if st.button("Access System", disabled=not agree):
-            if mode == "Log In":
-                if u in st.session_state.db["users"] and st.session_state.db["users"][u] == p:
-                    st.session_state.user = u
+        with tab1:
+            u_in = st.text_input("Username", key="li_u")
+            p_in = st.text_input("Password", type="password", key="li_p")
+            
+        with tab2:
+            u_up = st.text_input("Choose Username", key="su_u")
+            p_up = st.text_input("Choose Password", type="password", key="su_p")
+
+        st.markdown("### Terms and Policy")
+        st.markdown(f"""
+        <div class='legal-box'>
+            <strong>1. Beta Agreement:</strong> Gobidas is in a testing phase. We do not guarantee that your account or chats will be saved forever. 
+            Data wipes may happen at any time.<br><br>
+            <strong>2. Privacy:</strong> We store your username and a hashed version of your password. Your chat history is saved locally on our server 
+            so you can see it later. We do not sell your data to third parties.<br><br>
+            <strong>3. Usage:</strong> You agree not to use this AI for illegal activities, generating hate speech, or harmful content. 
+            The AI can make mistakes; always double-check important info.<br><br>
+            <strong>4. Cookies:</strong> We use basic session tools to keep you logged in. By entering, you agree to these simple rules.
+        </div>
+        """, unsafe_allow_html=True)
+        
+        agree = st.checkbox("I agree to the terms and policy")
+        
+        if st.button("Enter", disabled=not agree):
+            db = st.session_state.db
+            if u_in and p_in: # Log in logic
+                if u_in in db["users"] and db["users"][u_in] == p_in:
+                    st.session_state.user = u_in
                     st.session_state.messages = []
                     st.rerun()
-                else: st.error("Access Denied.")
-            else:
-                if u and p:
-                    st.session_state.db["users"][u] = p
-                    st.session_state.db["history"][u] = []
-                    save_db(st.session_state.db)
-                    st.success("Account Created! Now Log In.")
+                else: st.error("Wrong info.")
+            elif u_up and p_up: # Sign up logic
+                db["users"][u_up] = p_up
+                db["history"][u_up] = []
+                save_db(db)
+                st.success("Account made! Now log in above.")
     st.stop()
 
-# --- 5. CHAT ENGINE (Llama 3.2 90B Vision) ---
+# --- 5. CHAT ENGINE (NEW LLAMA 4 MODEL) ---
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 st.markdown("<h1 class='main-title'>Gobidas AI</h1>", unsafe_allow_html=True)
 
@@ -140,7 +138,7 @@ for msg in st.session_state.messages:
         st.markdown(msg["content"])
         if "image" in msg: st.image(msg["image"], width=400)
 
-if prompt := st.chat_input("Ask Gobidas..."):
+if prompt := st.chat_input("Message Gobidas..."):
     msg_entry = {"role": "user", "content": prompt}
     if img_file: msg_entry["image"] = img_file.getvalue()
     st.session_state.messages.append(msg_entry)
@@ -152,6 +150,7 @@ if prompt := st.chat_input("Ask Gobidas..."):
     with st.chat_message("assistant"):
         try:
             if img_file:
+                # USING LLAMA 4 SCOUT (NOT 3.2)
                 img = Image.open(img_file).convert("RGB")
                 img.thumbnail((800, 800))
                 buf = io.BytesIO()
@@ -159,7 +158,7 @@ if prompt := st.chat_input("Ask Gobidas..."):
                 b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
                 
                 res = client.chat.completions.create(
-                    model="llama-3.2-90b-vision-preview",
+                    model="meta-llama/llama-4-scout-17b-16e-instruct",
                     messages=[{"role": "user", "content": [
                         {"type": "text", "text": prompt},
                         {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
@@ -175,8 +174,9 @@ if prompt := st.chat_input("Ask Gobidas..."):
             st.markdown(ans)
             st.session_state.messages.append({"role": "assistant", "content": ans})
             
+            # Save to Database
             hist = st.session_state.db["history"].get(st.session_state.user, [])
-            chat_summary = {"name": prompt[:25], "msgs": st.session_state.messages, "timestamp": time.time()}
+            chat_summary = {"name": prompt[:20], "msgs": st.session_state.messages, "timestamp": time.time()}
             
             if st.session_state.get("active_idx") is None:
                 hist.append(chat_summary)
