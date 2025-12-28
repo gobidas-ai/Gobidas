@@ -141,8 +141,8 @@ st.markdown("<h1 class='main-title'>Gobidas</h1>", unsafe_allow_html=True)
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
-        if "generated_image" in msg:
-            st.image(msg["generated_image"])
+        if "img_tag" in msg:
+            st.markdown(msg["img_tag"])
 
 if prompt := st.chat_input("Command Gobidas..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
@@ -151,17 +151,19 @@ if prompt := st.chat_input("Command Gobidas..."):
         if img_file: st.image(img_file, width=300)
 
     with st.chat_message("assistant"):
-        # Check if user wants an image
+        # Image Generation Logic
         if any(word in prompt.lower() for word in ["generate image", "draw", "create image", "make an image"]):
-            with st.spinner("Generating with Nano Banana..."):
-                # Simulation of image generation (Replace with actual API call if available)
-                # For now, it triggers the internal generative tool
-                st.write(f"Generating: {prompt}")
-                # 
+            img_tag = f"
 
 [Image of {prompt}]
- 
-                st.session_state.messages.append({"role": "assistant", "content": f"Here is your image of: {prompt}"})
+"
+            st.markdown(f"Generating your request: **{prompt}**")
+            st.markdown(img_tag)
+            st.session_state.messages.append({
+                "role": "assistant", 
+                "content": f"I have generated the image for: {prompt}",
+                "img_tag": img_tag
+            })
         else:
             try:
                 if img_file:
