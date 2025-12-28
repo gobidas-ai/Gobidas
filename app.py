@@ -12,7 +12,7 @@ def get_base64(file):
             return base64.b64encode(f.read()).decode()
     except: return ""
 
-# Session state for secret overlays
+# Initialize Session States
 if "creator_info_active" not in st.session_state:
     st.session_state.creator_info_active = False
 if "nice_man_active" not in st.session_state:
@@ -24,7 +24,6 @@ bin_str = get_base64('background.jpg')
 sec_img_base64 = get_base64('secret_image.png')
 sec_audio_base64 = get_base64('secret_music.mp3')
 
-# Loading the specific video file
 try:
     with open("ssstik.io_@hicc319_1766964298508.mp4", "rb") as v_file:
         video_bytes = v_file.read()
@@ -61,7 +60,7 @@ st.markdown(f"""
         color: black !important;
     }}
     .legal-scroll-box {{
-        height: 300px; overflow-y: scroll; background: rgba(0,0,0,0.7); 
+        height: 250px; overflow-y: scroll; background: rgba(0,0,0,0.7); 
         padding: 20px; border: 1px solid #FF6D00; color: #ddd; border-radius: 10px;
         margin-bottom: 20px; font-size: 0.85rem; line-height: 1.6;
     }}
@@ -75,18 +74,15 @@ st.markdown(f"""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. LEGAL CONTENT DEFINITION ---
+# --- 2. LEGAL & OVERLAYS ---
 LEGAL_TEXT = """
 <b>GOBIDAS BETA - TERMS & PRIVACY PROTOCOL</b><br><br>
-1. <b>Data Sovereignty:</b> All user logs and chat histories are stored in a local JSON architecture. No data is sold or transmitted to third-party advertisers.<br><br>
-2. <b>Neural Network Usage:</b> This interface utilizes Llama 4 Scout and Maverick engines via the Groq API. Users must comply with Meta's Acceptable Use Policy.<br><br>
-3. <b>Content Responsibility:</b> The creator of Gobidas is not liable for AI-generated outputs. Use at your own risk.<br><br>
-4. <b>Experimental Features:</b> Some modules (Visual Analysis) are in Alpha. Expect occasional inference delays.<br><br>
-5. <b>Privacy:</b> We do not track IP addresses or location data. Your session remains isolated to this browser instance.<br><br>
-6. <b>Zero Persistence:</b> Deleting a chat log removes it permanently from the local database.
+1. <b>Data Sovereignty:</b> All logs are stored in local JSON. No data is sold.<br><br>
+2. <b>Neural Engines:</b> Llama 4 Scout/Maverick via Groq API.<br><br>
+3. <b>Privacy:</b> No IP tracking. Session isolated to browser instance.<br><br>
+4. <b>Zero Persistence:</b> Deleting a log removes it from the DB permanently.
 """
 
-# --- 3. OVERLAY LOGIC ---
 def render_exit_button(state_key):
     _, col, _ = st.columns([1, 0.6, 1])
     with col:
@@ -111,20 +107,24 @@ if st.session_state.legal_overlay_active:
     render_exit_button("legal_overlay_active")
     st.stop()
 
-# --- 4. DATABASE & LOGIN ---
+# --- 3. DATABASE & AUTH ---
 DB_FILE = "gobidas_db.json"
 def load_db():
     if os.path.exists(DB_FILE):
         try:
             with open(DB_FILE, "r") as f: return json.load(f)
         except: pass
-    return {"users": {}, "history": {}}
+    return {"users": {}, "history": {}, "current_session": None}
 
 def save_db(data):
     with open(DB_FILE, "w") as f: json.dump(data, f)
 
 if "db" not in st.session_state:
     st.session_state.db = load_db()
+
+# Auto-Login Logic
+if "user" not in st.session_state and st.session_state.db.get("current_session"):
+    st.session_state.user = st.session_state.db["current_session"]
 
 if "user" not in st.session_state:
     st.markdown("<h1 class='main-title'>Gobidas</h1>", unsafe_allow_html=True)
@@ -134,13 +134,18 @@ if "user" not in st.session_state:
         u = st.text_input("User", placeholder="Identify...")
         p = st.text_input("Key", type="password", placeholder="Secret Key...")
         st.markdown(f'<div class="legal-scroll-box">{LEGAL_TEXT}</div>', unsafe_allow_html=True)
-        agree = st.checkbox("I accept the Gobidas Terms & Privacy Protocol")
+        remember = st.checkbox("Keep me logged in on this device")
+        agree = st.checkbox("I accept the Gobidas Protocol")
+        
         if st.button("INITIALIZE", disabled=not agree):
             db = st.session_state.db
             if mode == "Log In":
                 if u in db["users"] and db["users"][u] == p:
                     st.session_state.user = u
                     st.session_state.messages = []
+                    if remember:
+                        db["current_session"] = u
+                        save_db(db)
                     st.rerun()
                 else: st.error("Access Denied.")
             else:
@@ -148,10 +153,10 @@ if "user" not in st.session_state:
                     db["users"][u] = p
                     db["history"][u] = []
                     save_db(db)
-                    st.success("Authorized. Please Log In.")
+                    st.success("Authorized. Log in now.")
     st.stop()
 
-# --- 5. SIDEBAR & SETTINGS ---
+# --- 4. SIDEBAR ---
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 with st.sidebar:
@@ -163,16 +168,12 @@ with st.sidebar:
     
     st.divider()
     with st.expander("⚙️ System Config"):
-        if st.button("SMALL INFO ABOUT THE CREATOR"):
-            st.session_state.creator_info_active = True
-            st.rerun()
-        if st.button("VERY NICE MAN"):
-            st.session_state.nice_man_active = True
-            st.rerun()
-        if st.button("📜 VIEW LEGAL TERMS"):
-            st.session_state.legal_overlay_active = True
-            st.rerun()
-        if st.button("LOG OUT SESSION"):
+        if st.button("CREATOR INFO"): st.session_state.creator_info_active = True; st.rerun()
+        if st.button("VERY NICE MAN"): st.session_state.nice_man_active = True; st.rerun()
+        if st.button("📜 LEGAL TERMS"): st.session_state.legal_overlay_active = True; st.rerun()
+        if st.button("LOG OUT"):
+            st.session_state.db["current_session"] = None
+            save_db(st.session_state.db)
             del st.session_state.user
             st.rerun()
             
@@ -185,16 +186,14 @@ with st.sidebar:
             st.session_state.active_idx = len(logs) - 1 - i
             st.rerun()
 
-# --- 6. CHAT ---
+# --- 5. CHAT ---
 st.markdown("<h1 class='main-title'>Gobidas</h1>", unsafe_allow_html=True)
 for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
+    with st.chat_message(msg["role"]): st.markdown(msg["content"])
 
 if prompt := st.chat_input("Command Gobidas..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
+    with st.chat_message("user"): st.markdown(prompt)
 
     with st.chat_message("assistant"):
         try:
@@ -217,6 +216,7 @@ if prompt := st.chat_input("Command Gobidas..."):
             st.markdown(ans)
             st.session_state.messages.append({"role": "assistant", "content": ans})
             
+            # Save History
             hist = st.session_state.db["history"].get(st.session_state.user, [])
             chat_data = {"name": prompt[:30], "msgs": st.session_state.messages, "timestamp": time.time()}
             if st.session_state.get("active_idx") is None:
