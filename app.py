@@ -1,35 +1,57 @@
 import streamlit as st
 from groq import Groq
 import json, os, base64, io, time
+from PIL import Image
+import streamlit.components.v1 as components
 
-# --- 1. UI & BACKGROUND SETUP ---
+# --- 1. UI & STEALTH STYLE ---
 st.set_page_config(page_title="Gobidas Beta", layout="wide")
 
 def get_base64(file):
     try:
-        with open(file, 'rb') as f: return base64.b64encode(f.read()).decode()
+        with open(file, 'rb') as f:
+            return base64.b64encode(f.read()).decode()
     except: return ""
 
-# Restoring the background image
-bg_img = get_base64('background.jpg')
-
+bin_str = get_base64('background.jpg')
 st.markdown(f"""
 <style>
-    [data-testid="stAppViewContainer"] {{
-        background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.7)), 
-                    url("data:image/jpeg;base64,{bg_img}");
-        background-size: cover;
-        background-attachment: fixed;
+    header, [data-testid="stHeader"], .stDeployButton, [data-testid="stToolbar"], 
+    footer, [data-testid="stStatusWidget"], [data-testid="stManageAppButton"] {{
+        visibility: hidden !important; display: none !important;
     }}
-    .main-title {{ font-size: 5rem; color: #FF6D00; text-align: center; font-weight: 900; text-shadow: 2px 2px 10px #000; }}
-    .stButton>button {{ background: transparent; border: 2px solid #FF6D00; color: white; width: 100%; border-radius: 10px; font-weight: bold; }}
-    .stButton>button:hover {{ background: #FF6D00; color: black; }}
-    [data-testid="stSidebar"] {{ background: rgba(0,0,0,0.9) !important; border-right: 2px solid #FF6D00; }}
-    .legal-box {{ height: 350px; overflow-y: scroll; background: rgba(0,0,0,0.5); padding: 20px; border: 1px solid #FF6D00; color: #ccc; border-radius: 10px; }}
+    .stApp {{
+        background: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.85)), 
+                    url("data:image/jpeg;base64,{bin_str}");
+        background-size: cover; background-position: center; background-attachment: fixed;
+    }}
+    .main-title {{
+        font-weight: 900; color: #FF6D00; text-align: center; font-size: 5.5rem;
+        text-shadow: 0px 0px 25px rgba(255, 109, 0, 0.6); margin-bottom: 5px;
+    }}
+    .welcome-msg {{ text-align: center; color: #eee; font-size: 1.3rem; margin-bottom: 40px; font-weight: 300; }}
+    .stButton>button {{
+        width: 100%; border-radius: 12px; background: transparent !important;
+        color: white !important; border: 2px solid #FF6D00 !important;
+        font-weight: 700; transition: 0.3s all; height: 3.5em; text-transform: uppercase;
+    }}
+    .stButton>button:hover:not(:disabled) {{
+        background: #FF6D00 !important; color: black !important;
+        box-shadow: 0px 0px 30px rgba(255, 109, 0, 0.8);
+    }}
+    [data-testid="stSidebar"] {{
+        background: rgba(0, 0, 0, 0.9) !important;
+        backdrop-filter: blur(20px); border-right: 2px solid #FF6D00;
+    }}
+    .legal-text {{
+        background: rgba(0,0,0,0.4); padding: 15px; border-radius: 10px;
+        border: 1px solid rgba(255, 109, 0, 0.2); font-size: 0.85rem; color: #ccc;
+        height: 300px; overflow-y: auto; margin-bottom: 20px;
+    }}
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. DATABASE SYSTEM ---
+# --- 2. STORAGE ---
 DB_FILE = "gobidas_db.json"
 def load_db():
     if os.path.exists(DB_FILE):
@@ -44,104 +66,105 @@ def save_db(data):
 if "db" not in st.session_state:
     st.session_state.db = load_db()
 
-# --- 3. SIMPLE LOGIN / SIGN UP ---
+# --- 3. LOGIN & WELCOME SCREEN ---
 if "user" not in st.session_state:
-    st.markdown("<h1 class='main-title'>Gobidas</h1>", unsafe_allow_html=True)
-    st.warning("Website in beta: data loss may occur. Enjoy Gobidas!")
+    st.markdown("<h1 class='main-title'>GOBIDAS</h1>", unsafe_allow_html=True)
+    st.markdown("<p class='welcome-msg'>Welcome. Please log in to access the Llama 4 network.</p>", unsafe_allow_html=True)
     
-    c1, c2, c3 = st.columns([1, 2, 1])
-    with c2:
-        mode = st.radio("Action", ["Log in", "Sign up"], horizontal=True)
-        u = st.text_input("Username")
-        p = st.text_input("Password", type="password")
+    col1, col2, col3 = st.columns([1, 1.2, 1])
+    with col2:
+        mode = st.radio("Select Action", ["Log In", "Sign Up"], horizontal=True, label_visibility="collapsed")
+        u = st.text_input("Name", placeholder="Username")
+        p = st.text_input("Password", type="password", placeholder="Password")
         
-        st.write("### Terms and Policy")
-        st.markdown("""<div class='legal-box'>
-            1. <b>BETA STATUS:</b> This is a testing environment. Data may be cleared without notice.<br><br>
-            2. <b>DATA:</b> We store your username and chat history locally for your convenience.<br><br>
-            3. <b>CONTENT:</b> Do not generate illegal or harmful content.<br><br>
-            4. <b>LLAMA 4:</b> We use Llama 4 Scout and Maverick models. AI can make mistakes.<br><br>
-            5. <b>PRIVACY:</b> We do not sell your data to third parties.
+        st.markdown("**TERMS AND PRIVACY POLICY**")
+        st.markdown("""<div class='legal-text'>
+        <b>1. Introduction</b><br>Welcome to Gobidas. By accessing our AI, you agree to these terms.<br><br>
+        <b>2. Beta Disclaimer</b><br>This service is in Beta. We use Llama 4 Scout and Maverick. These models are experimental and may generate inaccurate, biased, or offensive content.<br><br>
+        <b>3. Data Usage</b><br>We store your data locally in a JSON format. We do not transmit your personal data to third parties, except for prompts sent to Groq Cloud for processing.<br><br>
+        <b>4. User Responsibility</b><br>You are solely responsible for the prompts you enter. Illegal use of this AI will result in immediate account termination.<br><br>
+        <b>5. Intellectual Property</b><br>Outputs generated are subject to the Llama 4 Community License. Do not claim sole authorship of AI-generated works.<br><br>
+        <b>6. Auto-Deletion</b><br>To maintain system performance, chat histories older than 30 days are automatically purged from our local database.<br><br>
+        <b>7. No Warranty</b><br>Gobidas is provided "as-is" without any warranties of any kind regarding reliability or availability.
         </div>""", unsafe_allow_html=True)
         
-        if st.button("Enter") if st.checkbox("I agree") else st.button("Enter", disabled=True):
+        agree = st.checkbox("I agree to the Terms and Privacy Policy")
+        
+        if st.button("ENTER", disabled=not agree):
             db = st.session_state.db
-            if mode == "Log in":
+            if mode == "Log In":
                 if u in db["users"] and db["users"][u] == p:
                     st.session_state.user = u
                     st.session_state.messages = []
                     st.rerun()
-                else: st.error("Wrong info.")
+                else: st.error("Invalid credentials.")
             else:
                 if u and p:
                     db["users"][u] = p
                     db["history"][u] = []
                     save_db(db)
-                    st.success("Account created! Log in now.")
+                    st.success("Account created! Please switch to Log In.")
     st.stop()
 
-# --- 4. CHAT INTERFACE (LLAMA 4) ---
+# --- 4. CHAT SYSTEM (THE MODELS) ---
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 with st.sidebar:
-    st.write(f"Active User: **{st.session_state.user}**")
+    st.markdown(f"### User: {st.session_state.user}")
     if st.button("New Chat"):
         st.session_state.messages = []
         st.session_state.active_idx = None
         st.rerun()
     
-    img_file = st.file_uploader("Upload Image", type=['png', 'jpg', 'jpeg'])
+    st.divider()
+    img_file = st.file_uploader("Upload Image (Scout Vision)", type=['png', 'jpg', 'jpeg'])
     
     st.divider()
-    st.write("### History")
+    st.write("Recent Activity")
     logs = st.session_state.db["history"].get(st.session_state.user, [])
     for i, log in enumerate(reversed(logs)):
-        if st.button(f"{log['name'][:20]}", key=f"h_{i}"):
-            st.session_state.messages = log["msgs"]
+        if st.button(f" {log.get('name', 'Chat')[:20]}", key=f"h_{i}"):
+            st.session_state.messages = log.get("msgs", [])
             st.session_state.active_idx = len(logs) - 1 - i
             st.rerun()
-            
-    if st.button("Log out"):
+    
+    if st.button("Log Out"):
         del st.session_state.user
         st.rerun()
 
-st.markdown("<h1 class='main-title'>Gobidas AI</h1>", unsafe_allow_html=True)
+st.markdown("<h1 class='main-title'>GOBIDAS</h1>", unsafe_allow_html=True)
 
 for m in st.session_state.messages:
     with st.chat_message(m["role"]):
         st.markdown(m["content"])
-        if "img" in m: st.image(f"data:image/jpeg;base64,{m['img']}", width=400)
 
-if prompt := st.chat_input("Ask Llama 4..."):
-    entry = {"role": "user", "content": prompt}
-    b64 = None
-    if img_file:
-        b64 = base64.b64encode(img_file.read()).decode()
-        entry["img"] = b64
-
-    st.session_state.messages.append(entry)
+if prompt := st.chat_input("Message Gobidas..."):
+    st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
-        if b64: st.image(img_file, width=400)
+        if img_file: st.image(img_file, width=300)
 
     with st.chat_message("assistant"):
         try:
-            if b64:
-                # LLAMA 4 SCOUT VISION LOGIC
+            if img_file:
+                # BACK TO LLAMA 4 SCOUT (VISION)
+                img = Image.open(img_file).convert("RGB")
+                img.thumbnail((800, 800))
+                buf = io.BytesIO()
+                img.save(buf, format="JPEG")
+                b64 = base64.b64encode(buf.getvalue()).decode()
+                
                 res = client.chat.completions.create(
-                    model="llama-4-scout-vision",
-                    messages=[{
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": prompt},
-                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
-                        ]
-                    }]
+                    model="meta-llama/llama-4-scout-17b-16e-instruct",
+                    messages=[{"role": "user", "content": [
+                        {"type": "text", "text": prompt},
+                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
+                    ]}]
                 )
             else:
-                # LLAMA 4 MAVERICK TEXT LOGIC
+                # BACK TO LLAMA 4 MAVERICK (TEXT)
                 res = client.chat.completions.create(
-                    model="llama-4-maverick",
+                    model="meta-llama/llama-4-maverick-17b-128e-instruct",
                     messages=[{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
                 )
             
@@ -149,15 +172,15 @@ if prompt := st.chat_input("Ask Llama 4..."):
             st.markdown(ans)
             st.session_state.messages.append({"role": "assistant", "content": ans})
             
-            # Save History (Fixes JSON bytes error)
+            # Save to History
             hist = st.session_state.db["history"].get(st.session_state.user, [])
-            chat_obj = {"name": prompt[:20], "msgs": st.session_state.messages}
+            chat_entry = {"name": prompt[:30], "msgs": st.session_state.messages, "timestamp": time.time()}
             if st.session_state.get("active_idx") is None:
-                hist.append(chat_obj)
+                hist.append(chat_entry)
                 st.session_state.active_idx = len(hist) - 1
             else:
-                hist[st.session_state.active_idx] = chat_obj
+                hist[st.session_state.active_idx] = chat_entry
             st.session_state.db["history"][st.session_state.user] = hist
             save_db(st.session_state.db)
         except Exception as e:
-            st.error(f"Error: {e}")
+            st.error(f"Engine Error: {e}")
