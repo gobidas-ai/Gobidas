@@ -2,14 +2,16 @@ import streamlit as st
 import os, json, base64
 from groq import Groq
 
-# --- 1. CONFIG & API SETUP ---
+# --- 1. CONFIG ---
 st.set_page_config(page_title="Gobidas AI", layout="wide")
 
-# Ensure GROQ_API_KEY is in your Streamlit Secrets
+# Updated to Llama 3.1 8B Instant (Not decommissioned)
+MODEL_NAME = "llama-3.1-8b-instant"
+
 try:
     client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 except Exception as e:
-    st.error("Missing Groq API Key in Secrets!")
+    st.error("API Key Error: Check your Streamlit Secrets.")
 
 USER_DB = "users_db.json"
 
@@ -26,7 +28,7 @@ def save_user(username, password):
     with open(USER_DB, "w") as f:
         json.dump(users, f)
 
-# --- 2. UI THEMING ---
+# --- 2. THEME ---
 def get_base64(file):
     try:
         with open(file, 'rb') as f: return base64.b64encode(f.read()).decode()
@@ -43,11 +45,11 @@ st.markdown(f"""
     .main-title {{ font-weight: 900; color: #FF6D00; text-align: center; font-size: 5rem; text-shadow: 0px 0px 25px #FF6D00; }}
     .stButton>button {{ width: 100%; border: 2px solid #FF6D00 !important; color: white !important; background: rgba(0,0,0,0.2) !important; font-weight: bold; border-radius: 8px; }}
     [data-testid="stSidebar"] {{ background-color: #000000 !important; border-right: 1px solid #FF6D00; }}
-    .legal-box {{ font-size: 0.8rem; color: #ccc; background: rgba(255,109,0,0.1); padding: 20px; border-radius: 10px; border: 1px solid #FF6D00; line-height: 1.6; }}
+    .legal-scroll {{ font-size: 0.85rem; color: #ccc; background: rgba(255,109,0,0.1); padding: 15px; border-radius: 10px; border: 1px solid #FF6D00; height: 300px; overflow-y: scroll; line-height: 1.5; }}
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. LOGIN & SIGN UP ---
+# --- 3. GATEWAY ---
 if "user" not in st.session_state:
     st.markdown("<h1 class='main-title'>Gobidas</h1>", unsafe_allow_html=True)
     t1, t2 = st.tabs(["LOG IN", "CREATE ACCOUNT"])
@@ -59,7 +61,7 @@ if "user" not in st.session_state:
             users = load_users()
             if u_l in users and users[u_l] == p_l:
                 st.session_state.user = u_l
-                st.session_state.messages = [{"role": "system", "content": "You are Gobidas AI, a professional assistant."}]
+                st.session_state.messages = [{"role": "system", "content": "You are Gobidas AI."}]
                 st.rerun()
             else: st.error("Invalid credentials.")
 
@@ -67,44 +69,50 @@ if "user" not in st.session_state:
         u_s = st.text_input("New Username", key="s_u")
         p_s = st.text_input("New Password", type="password", key="s_p")
         
-        st.markdown("### Official Legal Articles")
-        st.markdown("""<div class='legal-box'>
-        <b>Article 1: User Responsibility</b><br>
-        Users are solely responsible for the content they generate and must not use Gobidas AI for any deceptive, harmful, or illegal activities. <br><br>
-        <b>Article 2: Data Privacy & Security</b><br>
-        We value your privacy. Your login credentials are encrypted and stored locally. Chat histories are session-based and are not sold to third parties. <br><br>
-        <b>Article 3: AI Limitations</b><br>
-        Gobidas AI is an experimental tool based on Large Language Models. It may occasionally produce incorrect, biased, or halluncinated information. Always verify critical facts.<br><br>
-        <b>Article 4: Account Termination</b><br>
-        We reserve the right to suspend accounts that violate our community safety guidelines.
+        st.markdown("### Official Terms of Service & Privacy Policy")
+        st.markdown("""<div class='legal-scroll'>
+        <b>1. ACCEPTANCE OF TERMS</b><br>
+        By creating an account, you agree to be bound by these Terms. If you do not agree, you may not use the service.<br><br>
+        <b>2. DESCRIPTION OF SERVICE</b><br>
+        Gobidas AI is an artificial intelligence interface. Users may interact with the AI for creative and educational purposes.<br><br>
+        <b>3. USER CONDUCT</b><br>
+        You agree not to use Gobidas AI for:
+        - Generating illegal or harmful content.
+        - Impersonating others.
+        - Attempting to bypass system safety filters.<br><br>
+        <b>4. PRIVACY POLICY</b><br>
+        - <b>Data Collection:</b> We store your username and password for authentication.
+        - <b>Chat Logs:</b> Chat history is saved locally in your current session to provide context.
+        - <b>Third Parties:</b> We do not sell your personal data. AI processing is handled by Groq Cloud.<br><br>
+        <b>5. NO WARRANTY</b><br>
+        The service is provided "as is." We do not guarantee the accuracy of AI-generated responses.
         </div>""", unsafe_allow_html=True)
-        agree = st.checkbox("I have read and agree to all terms of service.")
+        agree = st.checkbox("I agree to the Terms and Privacy Policy.")
         
-        if st.button("REGISTER ACCOUNT"):
-            if not agree: st.warning("You must accept the legal articles.")
+        if st.button("REGISTER"):
+            if not agree: st.warning("You must accept the legal terms.")
             elif len(u_s) < 3 or len(p_s) < 6: st.error("Username (3+) or Password (6+) too short.")
             else:
                 save_user(u_s, p_s)
-                st.success("Registration Successful! Please switch to the LOG IN tab.")
+                st.success("Account created! Use the LOG IN tab.")
     st.stop()
 
-# --- 4. MAIN INTERFACE & SIDEBAR ---
-# Ensure messages exist
+# --- 4. CHAT INTERFACE & SIDEBAR ---
 if "messages" not in st.session_state:
     st.session_state.messages = [{"role": "system", "content": "You are Gobidas AI."}]
 
 with st.sidebar:
     st.title(f"@{st.session_state.user}")
     st.divider()
-    st.subheader("Control Panel")
+    st.subheader("Chat Management")
     
-    if st.button("🗑️ Reset Chat History"):
+    if st.button("🗑️ Clear History"):
         st.session_state.messages = [{"role": "system", "content": "You are Gobidas AI."}]
         st.rerun()
 
-    uploaded_file = st.file_uploader("🖼️ Upload Image to Chat", type=['png', 'jpg', 'jpeg'])
+    uploaded_file = st.file_uploader("🖼️ Attach Image", type=['png', 'jpg', 'jpeg'])
     if uploaded_file:
-        st.image(uploaded_file, caption="Selected Image", use_container_width=True)
+        st.image(uploaded_file, caption="User Upload")
     
     st.divider()
     if st.button("🚪 LOGOUT"):
@@ -113,31 +121,25 @@ with st.sidebar:
 
 st.markdown("<h1 class='main-title'>Gobidas AI</h1>", unsafe_allow_html=True)
 
-# Display Chat History
+# History logic
 for m in st.session_state.messages:
     if m["role"] != "system":
-        with st.chat_message(m["role"]):
-            st.markdown(m["content"])
+        with st.chat_message(m["role"]): st.markdown(m["content"])
 
-# Handling User Input
-if prompt := st.chat_input("Ask Gobidas anything..."):
-    # Append user message to history
+# Chat Input & AI logic
+if prompt := st.chat_input("How can I help you today?"):
     st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
+    with st.chat_message("user"): st.markdown(prompt)
 
-    # Generate AI Response
     with st.chat_message("assistant"):
         try:
-            # Pass full history to maintain context
-            completion = client.chat.completions.create(
-                model="llama3-8b-8192",
-                messages=st.session_state.messages,
-                temperature=0.7
+            # Using the new llama-3.1-8b-instant model
+            resp = client.chat.completions.create(
+                model=MODEL_NAME, 
+                messages=st.session_state.messages
             )
-            response = completion.choices[0].message.content
-            st.markdown(response)
-            # Save response to history
-            st.session_state.messages.append({"role": "assistant", "content": response})
+            full_ans = resp.choices[0].message.content
+            st.markdown(full_ans)
+            st.session_state.messages.append({"role": "assistant", "content": full_ans})
         except Exception as e:
-            st.error(f"AI Error: {e}")
+            st.error(f"AI System Error: {e}")
