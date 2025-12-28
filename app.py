@@ -1,151 +1,436 @@
 import streamlit as st
-import os, json, base64, time
-from groq import Groq
+import ollama
+import sqlite3
+import hashlib
+import os
 from datetime import datetime
 
-# --- 1. CONFIG ---
-st.set_page_config(page_title="Gobidas AI", layout="wide")
-MODEL_NAME = "llama-3.1-8b-instant"
+# --- 1. PAGE CONFIG & DARK PRO UI ---
+st.set_page_config(page_title="Gobidas Beta", layout="wide", page_icon="🟠")
 
-try:
-    client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-except:
-    st.error("API Key missing in Secrets!")
+st.markdown("""
+    <style>
+    /* Main Dark Canvas */
+    .stApp {
+        background-color: #0A0A0A;
+        color: #E0E0E0;
+        font-family: 'Inter', sans-serif;
+    }
 
-# File paths for persistence
-USER_DB = "users_db.json"
-CHAT_DB = "chat_histories.json"
+    /* Sidebar: Sleek Charcoal with Glass Effect */
+    [data-testid="stSidebar"] {
+        background-color: #111111 !important;
+        border-right: 1px solid #222222;
+    }
 
-def load_data(file, default):
-    if os.path.exists(file):
-        with open(file, "r") as f: return json.load(f)
-    return default
+    /* Premium Logo Container */
+    .logo-container {
+        text-align: center;
+        padding: 20px;
+        background: linear-gradient(180deg, #1A1A1A 0%, #111111 100%);
+        border-radius: 20px;
+        margin-bottom: 25px;
+        border: 1px solid #333;
+    }
 
-def save_data(file, data):
-    with open(file, "w") as f: json.dump(data, f)
+    /* History Buttons: Cyber Orange Style */
+    .stSidebar .stButton>button {
+        background-color: transparent !important;
+        color: #888 !important;
+        border: 1px solid #222 !important;
+        border-radius: 12px !important;
+        text-align: left !important;
+        padding: 10px 15px !important;
+        transition: 0.3s all;
+        font-size: 0.9rem;
+        width: 100%;
+    }
 
-# --- 2. THEME & UI ---
-def get_base64(file):
-    try:
-        with open(file, 'rb') as f: return base64.b64encode(f.read()).decode()
-    except: return ""
+    .stSidebar .stButton>button:hover {
+        color: #FF6D00 !important;
+        border-color: #FF6D00 !important;
+        background-color: rgba(255, 109, 0, 0.05) !important;
+        box-shadow: 0 0 15px rgba(255, 109, 0, 0.1);
+    }
 
-bin_str = get_base64('background.jpg')
-st.markdown(f"""
-<style>
-    [data-testid="stHeader"] {{ background: transparent !important; }}
-    .stApp {{ 
-        background: linear-gradient(rgba(0,0,0,0.85), rgba(0,0,0,0.85)), url("data:image/jpeg;base64,{bin_str}"); 
-        background-size: cover; 
-    }}
-    .main-title {{ font-weight: 900; color: #FF6D00; text-align: center; font-size: 5rem; text-shadow: 0px 0px 25px #FF6D00; }}
-    .stButton>button {{ width: 100%; border: 2px solid #FF6D00 !important; color: white !important; background: rgba(0,0,0,0.2) !important; font-weight: bold; border-radius: 8px; }}
-    [data-testid="stSidebar"] {{ background-color: #000000 !important; border-right: 1px solid #FF6D00; }}
-    .legal-scroll {{ font-size: 0.85rem; color: #ccc; background: rgba(255,109,0,0.1); padding: 15px; border-radius: 10px; border: 1px solid #FF6D00; height: 250px; overflow-y: scroll; }}
-</style>
-""", unsafe_allow_html=True)
+    /* Chat Bubbles: Modern Minimalist */
+    .stChatMessage {
+        background-color: #161616 !important;
+        border: 1px solid #222 !important;
+        border-radius: 20px !important;
+        padding: 20px !important;
+        margin-bottom: 15px !important;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
 
-# --- 3. LOGIN / SIGNUP ---
-if "user" not in st.session_state:
-    st.markdown("<h1 class='main-title'>Gobidas</h1>", unsafe_allow_html=True)
-    t1, t2 = st.tabs(["LOG IN", "CREATE ACCOUNT"])
-    
-    with t1:
-        u_l = st.text_input("Username", key="l_u")
-        p_l = st.text_input("Password", type="password", key="l_p")
-        if st.button("LOG IN"):
-            users = load_data(USER_DB, {"admin": "gobidas2025"})
-            if u_l in users and users[u_l] == p_l:
-                st.session_state.user = u_l
-                st.rerun()
-            else: st.error("Invalid credentials.")
+    /* User Message: Electric Orange Accent */
+    div[data-testimonial="user"] {
+        border-right: 4px solid #FF6D00 !important;
+    }
 
-    with t2:
-        u_s = st.text_input("New Username", key="s_u")
-        p_s = st.text_input("New Password", type="password", key="s_p")
-        st.markdown("### Official Terms of Service")
-        st.markdown("<div class='legal-scroll'><b>1. Acceptance:</b> Use of Gobidas AI implies agreement to all terms. <br><b>2. Privacy:</b> Your data is stored for session context only. <br><b>3. AI:</b> Responses are generated by Llama 3.1. Accuracy is not guaranteed.</div>", unsafe_allow_html=True)
-        if st.button("REGISTER"):
-            if len(u_s) > 2 and len(p_s) > 5:
-                users = load_data(USER_DB, {"admin": "gobidas2025"})
-                users[u_s] = p_s
-                save_data(USER_DB, users)
-                st.success("Account created! Log in.")
-            else: st.error("Username (3+) and Password (6+) required.")
-    st.stop()
+    /* Modern Floating Input Bar */
+    .stChatInputContainer {
+        background-color: #1A1A1A !important;
+        border-radius: 15px !important;
+        border: 1px solid #333 !important;
+        padding: 5px !important;
+    }
 
-# --- 4. PERSISTENT HISTORY & SESSION LOGIC ---
-if "messages" not in st.session_state:
-    # Load history from file if it exists
-    all_histories = load_data(CHAT_DB, {})
-    st.session_state.messages = all_histories.get(st.session_state.user, [{"role": "system", "content": "You are Gobidas AI."}])
+    /* Custom Title Gradient */
+    .main-title {
+        font-size: 2.5rem;
+        font-weight: 900;
+        background: linear-gradient(90deg, #FF6D00, #FFAB40);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 10px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-# --- 5. SIDEBAR (SETTINGS & NEW CHAT) ---
-with st.sidebar:
-    st.title(f"@{st.session_state.user}")
-    
-    if st.button("➕ NEW CHAT"):
-        st.session_state.messages = [{"role": "system", "content": "You are Gobidas AI."}]
-        all_h = load_data(CHAT_DB, {})
-        all_h[st.session_state.user] = st.session_state.messages
-        save_data(CHAT_DB, all_h)
-        st.rerun()
+# --- 2. DATABASE ARCHITECTURE ---
+def init_db():
+    conn = sqlite3.connect('gobidas_vault.db', check_same_thread=False)
+    c = conn.cursor()
+    c.execute('CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT)')
+    c.execute('CREATE TABLE IF NOT EXISTS chat_sessions (id INTEGER PRIMARY KEY, username TEXT, title TEXT, timestamp TEXT)')
+    c.execute('CREATE TABLE IF NOT EXISTS messages (session_id INTEGER, role TEXT, content TEXT)')
+    conn.commit()
+    return conn
 
-    with st.expander("⚙️ SETTINGS"):
-        st.write("Model: Llama 3.1 8B")
-        st.write("Status: Live")
-        if st.button("Clear Saved Database"):
-            save_data(CHAT_DB, {})
-            st.rerun()
+conn = init_db()
+mport streamlit as st
+import ollama
+import sqlite3
+import hashlib
+import os
+from datetime import datetime
 
-    st.divider()
-    st.subheader("Image Attachment")
-    # File uploader in sidebar, but logic sends to chat
-    uploaded_file = st.file_uploader("Upload Image", type=['png', 'jpg', 'jpeg'], key="img_up")
-    
-    st.divider()
-    if st.button("🚪 LOGOUT"):
-        del st.session_state.user
-        st.rerun()
+# --- 1. PAGE CONFIG & DARK PRO UI ---
+st.set_page_config(page_title="Gobidas Beta", layout="wide", page_icon="🟠")
 
-# --- 6. MAIN CHAT AREA ---
-st.markdown("<h1 class='main-title'>Gobidas AI</h1>", unsafe_allow_html=True)
+st.markdown("""
+    <style>
+    /* Main Dark Canvas */
+    .stApp {
+        background-color: #0A0A0A;
+        color: #E0E0E0;
+        font-family: 'Inter', sans-serif;
+    }
 
-# Display existing messages
-for m in st.session_state.messages:
-    if m["role"] != "system":
-        with st.chat_message(m["role"]):
-            if "content" in m: st.markdown(m["content"])
-            if "image" in m: st.image(m["image"])
+    /* Sidebar: Sleek Charcoal with Glass Effect */
+    [data-testid="stSidebar"] {
+        background-color: #111111 !important;
+        border-right: 1px solid #222222;
+    }
 
-# Prompt Handling
-if prompt := st.chat_input("Ask me anything..."):
-    new_message = {"role": "user", "content": prompt}
-    
-    # If an image was uploaded, attach it to THIS specific user message
-    if uploaded_file:
-        img_data = uploaded_file.getvalue()
-        new_message["image"] = img_data
-        # Clear the uploader by resetting the key state (requires rerun or specific logic)
-    
-    st.session_state.messages.append(new_message)
-    
-    with st.chat_message("user"):
-        st.markdown(prompt)
-        if "image" in new_message: st.image(new_message["image"])
+    /* Premium Logo Container */
+    .logo-container {
+        text-align: center;
+        padding: 20px;
+        background: linear-gradient(180deg, #1A1A1A 0%, #111111 100%);
+        border-radius: 20px;
+        margin-bottom: 25px;
+        border: 1px solid #333;
+    }
 
-    with st.chat_message("assistant"):
-        try:
-            # Send only text content to Groq
-            chat_context = [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
-            resp = client.chat.completions.create(model=MODEL_NAME, messages=chat_context)
-            ans = resp.choices[0].message.content
-            st.markdown(ans)
-            st.session_state.messages.append({"role": "assistant", "content": ans})
-            
-            # Save to Database immediately
-            all_h = load_data(CHAT_DB, {})
-            all_h[st.session_state.user] = st.session_state.messages
-            save_data(CHAT_DB, all_h)
-        except Exception as e:
-            st.error(f"AI Error: {e}")
+    /* History Buttons: Cyber Orange Style */
+    .stSidebar .stButton>button {
+        background-color: transparent !important;
+        color: #888 !important;
+        border: 1px solid #222 !important;
+        border-radius: 12px !important;
+        text-align: left !important;
+        padding: 10px 15px !important;
+        transition: 0.3s all;
+        font-size: 0.9rem;
+        width: 100%;
+    }
+
+    .stSidebar .stButton>button:hover {
+        color: #FF6D00 !important;
+        border-color: #FF6D00 !important;
+        background-color: rgba(255, 109, 0, 0.05) !important;
+        box-shadow: 0 0 15px rgba(255, 109, 0, 0.1);
+    }
+
+    /* Chat Bubbles: Modern Minimalist */
+    .stChatMessage {
+        background-color: #161616 !important;
+        border: 1px solid #222 !important;
+        border-radius: 20px !important;
+        padding: 20px !important;
+        margin-bottom: 15px !important;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+
+    /* User Message: Electric Orange Accent */
+    div[data-testimonial="user"] {
+        border-right: 4px solid #FF6D00 !important;
+    }
+
+    /* Modern Floating Input Bar */
+    .stChatInputContainer {
+        background-color: #1A1A1A !important;
+        border-radius: 15px !important;
+        border: 1px solid #333 !important;
+        padding: 5px !important;
+    }
+
+    /* Custom Title Gradient */
+    .main-title {
+        font-size: 2.5rem;
+        font-weight: 900;
+        background: linear-gradient(90deg, #FF6D00, #FFAB40);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 10px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+# --- 2. DATABASE ARCHITECTURE ---
+def init_db():
+    conn = sqlite3.connect('gobidas_vault.db', check_same_thread=False)
+    c = conn.cursor()
+    c.execute('CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT)')
+    c.execute('CREATE TABLE IF NOT EXISTS chat_sessions (id INTEGER PRIMARY KEY, username TEXT, title TEXT, timestamp TEXT)')
+    c.execute('CREATE TABLE IF NOT EXISTS messages (session_id INTEGER, role TEXT, content TEXT)')
+    conn.commit()
+    return conn
+
+conn = init_db()
+mport streamlit as st
+import ollama
+import sqlite3
+import hashlib
+import os
+from datetime import datetime
+
+# --- 1. PAGE CONFIG & DARK PRO UI ---
+st.set_page_config(page_title="Gobidas Beta", layout="wide", page_icon="🟠")
+
+st.markdown("""
+    <style>
+    /* Main Dark Canvas */
+    .stApp {
+        background-color: #0A0A0A;
+        color: #E0E0E0;
+        font-family: 'Inter', sans-serif;
+    }
+
+    /* Sidebar: Sleek Charcoal with Glass Effect */
+    [data-testid="stSidebar"] {
+        background-color: #111111 !important;
+        border-right: 1px solid #222222;
+    }
+
+    /* Premium Logo Container */
+    .logo-container {
+        text-align: center;
+        padding: 20px;
+        background: linear-gradient(180deg, #1A1A1A 0%, #111111 100%);
+        border-radius: 20px;
+        margin-bottom: 25px;
+        border: 1px solid #333;
+    }
+
+    /* History Buttons: Cyber Orange Style */
+    .stSidebar .stButton>button {
+        background-color: transparent !important;
+        color: #888 !important;
+        border: 1px solid #222 !important;
+        border-radius: 12px !important;
+        text-align: left !important;
+        padding: 10px 15px !important;
+        transition: 0.3s all;
+        font-size: 0.9rem;
+        width: 100%;
+    }
+
+    .stSidebar .stButton>button:hover {
+        color: #FF6D00 !important;
+        border-color: #FF6D00 !important;
+        background-color: rgba(255, 109, 0, 0.05) !important;
+        box-shadow: 0 0 15px rgba(255, 109, 0, 0.1);
+    }
+
+    /* Chat Bubbles: Modern Minimalist */
+    .stChatMessage {
+        background-color: #161616 !important;
+        border: 1px solid #222 !important;
+        border-radius: 20px !important;
+        padding: 20px !important;
+        margin-bottom: 15px !important;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+
+    /* User Message: Electric Orange Accent */
+    div[data-testimonial="user"] {
+        border-right: 4px solid #FF6D00 !important;
+    }
+
+    /* Modern Floating Input Bar */
+    .stChatInputContainer {
+        background-color: #1A1A1A !important;
+        border-radius: 15px !important;
+        border: 1px solid #333 !important;
+        padding: 5px !important;
+    }
+
+    /* Custom Title Gradient */
+    .main-title {
+        font-size: 2.5rem;
+        font-weight: 900;
+        background: linear-gradient(90deg, #FF6D00, #FFAB40);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 10px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+# --- 2. DATABASE ARCHITECTURE ---
+def init_db():
+    conn = sqlite3.connect('gobidas_vault.db', check_same_thread=False)
+    c = conn.cursor()
+    c.execute('CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT)')
+    c.execute('CREATE TABLE IF NOT EXISTS chat_sessions (id INTEGER PRIMARY KEY, username TEXT, title TEXT, timestamp TEXT)')
+    c.execute('CREATE TABLE IF NOT EXISTS messages (session_id INTEGER, role TEXT, content TEXT)')
+    conn.commit()
+    return conn
+
+conn = init_db()
+# --- 3. SESSION LOGIC ---
+if "logged_in" not in st.session_state: st.session_state.logged_in = False
+if "current_session_id" not in st.session_state: st.session_state.current_session_id = None
+
+# --- 4. AUTHENTICATION (Modern Minimalist) ---
+if not st.session_state.logged_in:
+    _, center, _ = st.columns([1, 1, 1])
+    with center:
+        st.markdown("<div style='height: 100px;'></div>", unsafe_allow_html=True)
+        st.markdown("<h1 style='text-align: center; color: #FF6D00;'>Gobidas Beta</h1>", unsafe_allow_html=True)
+        with st.container():
+            u = st.text_input("Username")
+            p = st.text_input("Password", type="password")
+            col1, col2 = st.columns(2)
+            if col1.button("Login"):
+                hp = hashlib.sha256(p.encode()).hexdigest()
+                c = conn.cursor()
+                c.execute("SELECT * FROM users WHERE username=? AND password=?", (u, hp))
+                if c.fetchone():
+                    st.session_state.logged_in = True
+                    st.session_state.user = u
+                    st.rerun()
+            if col2.button("Join"):
+                hp = hashlib.sha256(p.encode()).hexdigest()
+                try:
+                    conn.cursor().execute("INSERT INTO users VALUES (?,?)", (u, hp))
+                    conn.commit()
+                    st.success("Welcome aboard!")
+                except: st.error("User exists.")
+
+# --- 3. SESSION LOGIC ---
+if "logged_in" not in st.session_state: st.session_state.logged_in = False
+if "current_session_id" not in st.session_state: st.session_state.current_session_id = None
+
+# --- 4. AUTHENTICATION (Modern Minimalist) ---
+if not st.session_state.logged_in:
+    _, center, _ = st.columns([1, 1, 1])
+    with center:
+        st.markdown("<div style='height: 100px;'></div>", unsafe_allow_html=True)
+        st.markdown("<h1 style='text-align: center; color: #FF6D00;'>Gobidas Beta</h1>", unsafe_allow_html=True)
+        with st.container():
+            u = st.text_input("Username")
+            p = st.text_input("Password", type="password")
+            col1, col2 = st.columns(2)
+            if col1.button("Login"):
+                hp = hashlib.sha256(p.encode()).hexdigest()
+                c = conn.cursor()
+                c.execute("SELECT * FROM users WHERE username=? AND password=?", (u, hp))
+                if c.fetchone():
+                    st.session_state.logged_in = True
+                    st.session_state.user = u
+                    st.rerun()
+            if col2.button("Join"):
+                hp = hashlib.sha256(p.encode()).hexdigest()
+                try:
+                    conn.cursor().execute("INSERT INTO users VALUES (?,?)", (u, hp))
+                    conn.commit()
+                    st.success("Welcome aboard!")
+                except: st.error("User exists.")
+
+# --- 5. MAIN APPLICATION ---
+else:
+    with st.sidebar:
+        # LOGO AREA
+        st.markdown("<div class='logo-container'>", unsafe_allow_html=True)
+        if os.path.exists("logo_cube.jpg"):
+            st.image("logo_cube.jpg", width=120)
+        st.markdown(f"<p style='margin-top:10px; opacity:0.6;'>{st.session_state.user.upper()}</p>", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        if st.button("➕ START NEW CHAT"):
+            st.session_state.current_session_id = None
+            st.rerun()
+
+        st.markdown("<br><p style='font-size:0.7rem; color:#555;'>COLLECTIONS</p>", unsafe_allow_html=True)
+        c = conn.cursor()
+        c.execute("SELECT id, title FROM chat_sessions WHERE username=? ORDER BY id DESC", (st.session_state.user,))
+        for s_id, title in c.fetchall():
+            if st.button(f"● {title}", key=f"sess_{s_id}"):
+                st.session_state.current_session_id = s_id
+                st.rerun()
+
+        st.markdown("---")
+        if st.button("Logout"):
+            st.session_state.logged_in = False
+            st.rerun()
+
+    # CHAT AREA
+    st.markdown("<h1 class='main-title'>Gobidas Beta</h1>", unsafe_allow_html=True)
+
+    messages_to_show = []
+    if st.session_state.current_session_id:
+        c.execute("SELECT role, content FROM messages WHERE session_id=?", (st.session_state.current_session_id,))
+        messages_to_show = [{"role": r, "content": c} for r, c in c.fetchall()]
+
+    for msg in messages_to_show:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+
+    # Vision Logic
+    uploaded_file = st.sidebar.file_uploader("📎 Upload Image for Vision Mode", type=['png', 'jpg', 'jpeg'])
+
+    if prompt := st.chat_input("Ask anything..."):
+        if not st.session_state.current_session_id:
+            title = (prompt[:25] + '...') if len(prompt) > 25 else prompt
+            c.execute("INSERT INTO chat_sessions (username, title, timestamp) VALUES (?,?,?)",
+                      (st.session_state.user, title, datetime.now().isoformat()))
+            st.session_state.current_session_id = c.lastrowid
+            conn.commit()
+
+        c.execute("INSERT INTO messages VALUES (?,?,?)", (st.session_state.current_session_id, "user", prompt))
+        conn.commit()
+
+        with st.chat_message("user"):
+            st.markdown(prompt)
+            if uploaded_file: st.image(uploaded_file, width=300)
+
+        with st.chat_message("assistant"):
+            with st.spinner("Analyzing..."):
+                try:
+                    if uploaded_file:
+                        # Use Moondream for RTX 2050 stability
+                        res = ollama.chat(model='moondream', messages=[{'role': 'user', 'content': prompt, 'images': [uploaded_file.getvalue()]}])
+                    else:
+                        res = ollama.chat(model='llama3.2', messages=messages_to_show + [{"role": "user", "content": prompt}])
+
+                    ans = res['message']['content']
+                    st.markdown(ans)
+                    c.execute("INSERT INTO messages VALUES (?,?,?)", (st.session_state.current_session_id, "assistant", ans))
+                    conn.commit()
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Hardware error: {e}")
