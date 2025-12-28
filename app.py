@@ -2,9 +2,8 @@ import streamlit as st
 from groq import Groq
 import json, os, base64, io, time
 from PIL import Image
-import streamlit.components.v1 as components
 
-# --- 1. UI & TOTAL STEALTH STYLE ---
+# --- 1. UI & LAYOUT ---
 st.set_page_config(page_title="Gobidas Beta", layout="wide", initial_sidebar_state="expanded")
 
 def get_base64(file):
@@ -17,23 +16,9 @@ def get_base64(file):
 
 bin_str = get_base64('background.jpg')
 
+# Header and Sidebar controls are now RESTORED (visibility: visible)
 st.markdown(f"""
 <style>
-    /* HIDE HEADER/FOOTER BUT KEEP SIDEBAR BUTTON ACCESSIBLE */
-    header, [data-testid="stHeader"], .stDeployButton, [data-testid="stToolbar"], 
-    footer, [data-testid="stStatusWidget"], [data-testid="stManageAppButton"] {{
-        visibility: hidden !important; height: 0px;
-    }}
-
-    /* SIDEBAR RECOVERY BUTTON - This ensures you can always open the sidebar */
-    [data-testid="collapsedControl"] {{
-        visibility: visible !important;
-        display: flex !important;
-        background: rgba(255, 109, 0, 0.6) !important;
-        border-radius: 0 8px 8px 0;
-        top: 10px;
-    }}
-
     .stApp {{
         background: linear-gradient(rgba(0,0,0,0.65), rgba(0,0,0,0.85)), 
                     url("data:image/jpeg;base64,{bin_str}");
@@ -82,7 +67,7 @@ def load_db():
             with open(DB_FILE, "r") as f: 
                 data = json.load(f)
                 now = time.time()
-                cutoff = 30 * 24 * 60 * 60 # 30 Days
+                cutoff = 30 * 24 * 60 * 60 
                 if "history" in data:
                     for user in data["history"]:
                         data["history"][user] = [c for c in data["history"][user] if (now - c.get("timestamp", now)) < cutoff]
@@ -185,10 +170,8 @@ for msg in st.session_state.messages:
 if prompt := st.chat_input("Ask Gobidas..."):
     msg_entry = {"role": "user", "content": prompt}
     
-    # Handle Image Persistence
     if img_file:
-        img_bytes = img_file.getvalue()
-        msg_entry["image"] = img_bytes
+        msg_entry["image"] = img_file.getvalue()
 
     st.session_state.messages.append(msg_entry)
     
@@ -198,7 +181,6 @@ if prompt := st.chat_input("Ask Gobidas..."):
 
     with st.chat_message("assistant"):
         try:
-            # Logic for Vision vs Text
             if img_file:
                 img = Image.open(img_file).convert("RGB")
                 img.thumbnail((800, 800))
@@ -223,7 +205,7 @@ if prompt := st.chat_input("Ask Gobidas..."):
             st.markdown(ans)
             st.session_state.messages.append({"role": "assistant", "content": ans})
             
-            # Save to Database
+            # Save History
             hist = st.session_state.db["history"].get(st.session_state.user, [])
             chat_summary = {"name": prompt[:30], "msgs": st.session_state.messages, "timestamp": time.time()}
             
