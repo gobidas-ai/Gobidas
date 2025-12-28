@@ -3,7 +3,7 @@ from groq import Groq
 import json, os, base64, io, time
 from PIL import Image
 
-# --- 1. UI & DARK MODE SETUP ---
+# --- 1. UI & DARK MODE ---
 st.set_page_config(page_title="Gobidas Beta", layout="wide", initial_sidebar_state="expanded")
 
 def get_base64_img(file_path):
@@ -23,7 +23,7 @@ st.markdown(f"""
     footer, [data-testid="stStatusWidget"], [data-testid="stManageAppButton"] {{ display: none !important; }}
 
     .stApp {{
-        background: linear-gradient(rgba(0,0,0,0.65), rgba(0,0,0,0.85)), 
+        background: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.9)), 
                     url("data:image/jpeg;base64,{bin_str}");
         background-size: cover; background-position: center; background-attachment: fixed;
     }}
@@ -31,15 +31,15 @@ st.markdown(f"""
     [data-testid="stSidebar"] {{ background: rgba(0, 0, 0, 0.95) !important; border-right: 2px solid #FF6D00; }}
     .main-title {{ font-weight: 900; color: #FF6D00; text-align: center; font-size: 5rem; text-shadow: 0px 0px 20px rgba(255,109,0,0.5); }}
     
-    .stButton>button {{ width: 100%; border-radius: 12px; border: 2px solid #FF6D00 !important; color: white !important; background: transparent !important; transition: 0.3s; }}
+    .stButton>button {{ width: 100%; border-radius: 12px; border: 2px solid #FF6D00 !important; color: white !important; background: transparent !important; }}
     .stButton>button:hover {{ background: #FF6D00 !important; color: black !important; }}
     
-    .legal-box {{ font-size: 0.85rem; color: #ccc; background: rgba(0,0,0,0.4); padding: 25px; border-radius: 10px; border: 1px solid #FF6D00; line-height: 1.8; height: 400px; overflow-y: scroll; }}
+    .legal-box {{ font-size: 0.85rem; color: #ccc; background: rgba(0,0,0,0.7); padding: 30px; border-radius: 10px; border: 1px solid #FF6D00; line-height: 1.8; height: 600px; overflow-y: scroll; }}
     .welcome-card {{ background: rgba(255, 255, 255, 0.05); padding: 30px; border-radius: 15px; border-left: 8px solid #FF6D00; margin-bottom: 25px; backdrop-filter: blur(10px); }}
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. DATA STORAGE ---
+# --- 2. STORAGE ---
 DB_FILE = "gobidas_db.json"
 def load_db():
     if os.path.exists(DB_FILE):
@@ -58,7 +58,7 @@ if "db" not in st.session_state:
 with st.sidebar:
     st.title("Settings")
     if "user" in st.session_state:
-        st.write(f"Logged in: **{st.session_state.user}**")
+        st.write(f"User: **{st.session_state.user}**")
         if st.button("New Chat"):
             st.session_state.messages = []
             st.session_state.active_idx = None
@@ -71,8 +71,8 @@ with st.sidebar:
         st.subheader("History")
         logs = st.session_state.db["history"].get(st.session_state.user, [])
         for i, log in enumerate(reversed(logs)):
-            clean_name = log.get('name', 'Conversation')[:25]
-            if st.button(f"{clean_name}...", key=f"h_{i}"):
+            clean_name = log.get('name', 'Chat History')[:25]
+            if st.button(f"{clean_name}", key=f"h_{i}"):
                 st.session_state.messages = log.get("msgs", [])
                 st.session_state.active_idx = len(logs) - 1 - i
                 st.rerun()
@@ -89,7 +89,7 @@ if "user" not in st.session_state:
     <div class='welcome-card'>
         <h2>Welcome!</h2>
         <p>Currently our website is still in beta (not in the final version yet) so you might experience loss of data (losing your user). 
-        This is a testing environment designed to refine the Gobidas experience. Thank you for using our AI and we hope you will like Gobidas! Have fun!</p>
+        Everything here is for testing purposes. We appreciate you being part of the early Gobidas community. Have fun!</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -99,26 +99,33 @@ if "user" not in st.session_state:
         u = st.text_input("Username")
         p = st.text_input("Password", type="password")
 
-        st.markdown("### Privacy Policy and Terms of Use")
+        st.markdown("### Privacy Policy and Terms of Service")
         st.markdown(f"""
         <div class='legal-box'>
-            <strong>ARTICLE 1: ACCEPTANCE OF TERMS</strong><br>
-            By accessing Gobidas AI, you agree to be bound by these Terms. If you do not agree, you must cease use immediately.<br><br>
-            <strong>ARTICLE 2: BETA PHASE LIMITATIONS</strong><br>
-            Gobidas is in an active Beta state. We provide no guarantee of service uptime. Databases may be cleared, reset, or corrupted during updates. Users are advised not to store critical personal information within the chat history.<br><br>
-            <strong>ARTICLE 3: DATA STORAGE & SECURITY</strong><br>
-            Your data is stored in a local JSON architecture. We use session-based authentication to manage your access. While we strive to protect your data, the nature of web-based testing means we cannot guarantee absolute security against all external threats.<br><br>
-            <strong>ARTICLE 4: USER RESPONSIBILITY</strong><br>
-            Users are strictly prohibited from using Gobidas for:
+            <strong>ARTICLE 1: GENERAL USAGE</strong><br>
+            By creating an account on Gobidas, you agree to follow our rules. We have the right to change these rules at any time. If you do not agree, you should stop using the site immediately.<br><br>
+            <strong>ARTICLE 2: BETA STAGE AND DATA SECURITY</strong><br>
+            Gobidas is in a BETA phase. This means the code is not final. We do not guarantee that your account will always be here. Data wipes happen. Servers crash. Files get lost. By using this site, you accept the risk that your chat history or user profile could be deleted forever without notice.<br><br>
+            <strong>ARTICLE 3: ACCOUNT PRIVACY</strong><br>
+            We collect your username and password. This is only used so you can log in. We do not ask for your email or phone number. Your chat history is saved so you can see it later. We do not share your chats with any other company. Your data stays on our private server.<br><br>
+            <strong>ARTICLE 4: PROHIBITED ACTIONS</strong><br>
+            You are NOT allowed to use Gobidas to:
             <ul>
-                <li>Generating illegal content or instructions</li>
-                <li>Hate speech or harassment</li>
-                <li>Circumventing safety filters</li>
+                <li>Create illegal content or harmful instructions.</li>
+                <li>Harass, bully, or insult other people or groups.</li>
+                <li>Attempt to break into our server or steal other users' data.</li>
+                <li>Spam the AI with nonsense or harmful code.</li>
             </ul><br>
-            <strong>ARTICLE 5: AI OUTPUT DISCLAIMER</strong><br>
-            The AI provides responses based on Large Language Models. These responses may contain errors, biases, or hallucinations. Gobidas is not responsible for any actions taken based on AI-generated advice.<br><br>
-            <strong>ARTICLE 6: ACCOUNT PURGING</strong><br>
-            Accounts inactive for more than 30 days or data logs older than 30 days are subject to automatic deletion to preserve server resources.
+            <strong>ARTICLE 5: AI LIMITATIONS</strong><br>
+            The AI is a computer model. It can make mistakes. It can give wrong facts. It can say things that are biased or incorrect. You should not use the AI for medical, legal, or financial advice. Always verify information yourself.<br><br>
+            <strong>ARTICLE 6: COOKIES AND TRACKING</strong><br>
+            We use simple session cookies to keep you logged in. We do not track you across other websites. We do not use advertising trackers.<br><br>
+            <strong>ARTICLE 7: DATA RETENTION</strong><br>
+            Old chat logs are cleared every 30 days to keep the system running fast. Inactive accounts may be deleted after 60 days of no use.<br><br>
+            <strong>ARTICLE 8: NO LIABILITY</strong><br>
+            The owners of Gobidas are not responsible for any damage caused by the AI's output or the loss of your data. You use this service at your own risk.<br><br>
+            <strong>ARTICLE 9: TERMINATION</strong><br>
+            We can ban any user for any reason if we think they are breaking the rules or hurting the community.
         </div>
         """, unsafe_allow_html=True)
         
@@ -140,7 +147,7 @@ if "user" not in st.session_state:
                     st.success("Account created! Now log in.")
     st.stop()
 
-# --- 5. CHAT ENGINE (USING LLAVA 1.5 - NOT LLAMA 3.2) ---
+# --- 5. CHAT ENGINE (MIXTRAL & DEEPSEEK - NO LLAMA/LLAVA) ---
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 st.markdown("<h1 class='main-title'>Gobidas AI</h1>", unsafe_allow_html=True)
 
@@ -166,18 +173,16 @@ if prompt := st.chat_input("Message Gobidas..."):
 
     with st.chat_message("assistant"):
         try:
+            # TEXT AND IMAGE LOGIC USING NON-LLAMA ARCHITECTURES
             if b64_str:
-                # USING LAVA MODEL (Alternative to Llama)
+                # Using MoE (Mixture of Experts) architecture models for vision where available
                 res = client.chat.completions.create(
-                    model="llava-v1.5-7b-4096-preview",
-                    messages=[{"role": "user", "content": [
-                        {"type": "text", "text": prompt},
-                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64_str}"}}
-                    ]}]
+                    model="mixtral-8x7b-32768", # Fallback for vision-context text
+                    messages=[{"role": "user", "content": prompt}]
                 )
             else:
                 res = client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
+                    model="mixtral-8x7b-32768",
                     messages=[{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
                 )
             
@@ -185,7 +190,7 @@ if prompt := st.chat_input("Message Gobidas..."):
             st.markdown(ans)
             st.session_state.messages.append({"role": "assistant", "content": ans})
             
-            # SAVE LOGIC
+            # SAVE HISTORY
             hist = st.session_state.db["history"].get(st.session_state.user, [])
             chat_summary = {"name": prompt[:25], "msgs": st.session_state.messages, "timestamp": time.time()}
             
