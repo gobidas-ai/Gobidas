@@ -14,6 +14,10 @@ def get_base64(file):
     except: return ""
 
 bin_str = get_base64('background.jpg')
+# Get Base64 for the secret files to ensure they load in the overlay
+secret_img_b64 = get_base64('secret_image.png')
+secret_audio_b64 = get_base64('secret_music.mp3')
+
 st.markdown(f"""
 <style>
     header, [data-testid="stHeader"], .stDeployButton, [data-testid="stToolbar"], 
@@ -46,7 +50,48 @@ st.markdown(f"""
         background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px;
         font-size: 0.8rem; color: #999; height: 250px; overflow-y: scroll; border: 1px solid rgba(255,109,0,0.2);
     }}
+
+    /* --- SECRET OVERLAY CSS --- */
+    #easterEggOverlay {{
+        display: none;
+        position: fixed;
+        top: 0; left: 0;
+        width: 100vw; height: 100vh;
+        background-color: #ff8c00;
+        z-index: 999999;
+        text-align: center;
+    }}
+    #easterEggOverlay img {{
+        max-height: 80vh; max-width: 90%; margin-top: 5vh;
+    }}
+    #goBackBtn {{
+        display: block; margin: 20px auto; padding: 15px 30px;
+        font-size: 20px; cursor: pointer; background: white;
+        border: 2px solid black; font-weight: bold;
+    }}
 </style>
+
+<div id="easterEggOverlay">
+    <img src="data:image/png;base64,{secret_img_b64}">
+    <button id="goBackBtn" onclick="stopEasterEgg()">,, GO BACK"</button>
+</div>
+
+<audio id="secretAudio" loop>
+    <source src="data:audio/mp3;base64,{secret_audio_b64}" type="audio/mp3">
+</audio>
+
+<script>
+    function activateEasterEgg() {{
+        document.getElementById('easterEggOverlay').style.display = 'block';
+        document.getElementById('secretAudio').play();
+    }}
+    function stopEasterEgg() {{
+        document.getElementById('easterEggOverlay').style.display = 'none';
+        var audio = document.getElementById('secretAudio');
+        audio.pause();
+        audio.currentTime = 0;
+    }}
+</script>
 """, unsafe_allow_html=True)
 
 # --- 2. DATABASE ---
@@ -107,6 +152,16 @@ client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 with st.sidebar:
     st.write(f"Logged in as: **{st.session_state.user}**")
+    
+    # --- SETTINGS & SECRET SECTION ---
+    with st.expander("⚙️ Settings"):
+        if st.button("SECRET DONT OPEN", type="primary"):
+            components.html("""
+                <script>
+                    window.parent.activateEasterEgg();
+                </script>
+            """, height=0)
+
     if st.button("New Chat"):
         st.session_state.messages = []
         st.session_state.active_idx = None
@@ -119,7 +174,6 @@ with st.sidebar:
     st.write("#### History")
     logs = st.session_state.db["history"].get(st.session_state.user, [])
     for i, log in enumerate(reversed(logs)):
-        # Formatting history names to Title Case (No more all caps)
         chat_name = log.get('name', 'New Chat').title()
         if st.button(f" {chat_name[:25]}", key=f"h_{i}"):
             st.session_state.messages = log.get("msgs", [])
@@ -147,7 +201,6 @@ if prompt := st.chat_input("Ask Gobidas..."):
     with st.chat_message("assistant"):
         try:
             if img_file:
-                # MODEL: LLAMA 4 SCOUT
                 img = Image.open(img_file).convert("RGB")
                 img.thumbnail((800, 800))
                 buf = io.BytesIO()
@@ -162,7 +215,6 @@ if prompt := st.chat_input("Ask Gobidas..."):
                     ]}]
                 )
             else:
-                # MODEL: LLAMA 4 MAVERICK
                 res = client.chat.completions.create(
                     model="meta-llama/llama-4-maverick-17b-128e-instruct",
                     messages=[{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
@@ -172,7 +224,6 @@ if prompt := st.chat_input("Ask Gobidas..."):
             st.markdown(ans)
             st.session_state.messages.append({"role": "assistant", "content": ans})
             
-            # Update History
             hist = st.session_state.db["history"].get(st.session_state.user, [])
             chat_entry = {"name": prompt[:30], "msgs": st.session_state.messages, "timestamp": time.time()}
             if st.session_state.get("active_idx") is None:
