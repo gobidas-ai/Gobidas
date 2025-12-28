@@ -15,17 +15,24 @@ bin_str = get_base64('background.jpg')
 
 st.markdown(f"""
 <style>
-    /* HIDE WATERMARK, PROFILE, AND HEADER */
+    /* HIDE WATERMARK, PROFILE, AND HEADER COMPLETELY */
     #MainMenu, footer, [data-testid="stStatusWidget"], .stDeployButton, [data-testid="stToolbar"] {{
         visibility: hidden !important; display: none !important;
     }}
     
-    /* RESTORE ONLY THE SIDEBAR OPENER */
+    /* THE ULTIMATE SIDEBAR RECOVERY BUTTON */
+    /* This forces the 'collapsed control' to stay visible and look like a pro toggle */
     [data-testid="collapsedControl"] {{
         visibility: visible !important;
-        background: rgba(255, 109, 0, 0.4) !important;
-        border-radius: 8px;
-        margin: 10px;
+        display: flex !important;
+        position: fixed !important;
+        top: 15px !important;
+        left: 15px !important;
+        z-index: 999999;
+        background-color: #FF6D00 !important;
+        border-radius: 8px !important;
+        padding: 5px !important;
+        box-shadow: 0px 0px 15px rgba(255, 109, 0, 0.5);
     }}
 
     .stApp {{
@@ -35,7 +42,7 @@ st.markdown(f"""
     }}
     
     [data-testid="stSidebar"] {{
-        background: rgba(0, 0, 0, 0.9) !important;
+        background: rgba(0, 0, 0, 0.95) !important;
         backdrop-filter: blur(25px); border-right: 2px solid #FF6D00;
     }}
     
@@ -51,8 +58,8 @@ st.markdown(f"""
     }}
 
     .legal-box {{
-        font-size: 0.8rem; color: #bbb; background: rgba(255,109,0,0.05); 
-        padding: 15px; border-radius: 8px; border: 1px solid rgba(255,109,0,0.3);
+        font-size: 0.8rem; color: #bbb; background: rgba(255,109,0,0.1); 
+        padding: 15px; border-radius: 8px; border: 1px solid rgba(255,109,0,0.4);
     }}
 </style>
 """, unsafe_allow_html=True)
@@ -74,19 +81,20 @@ if "db" not in st.session_state:
 
 # --- 3. SIDEBAR ---
 with st.sidebar:
-    st.markdown("### Gobidas Settings")
+    st.markdown("<br><br>", unsafe_allow_html=True) # Space for the toggle button
+    st.markdown("### Gobidas Controls")
     if "user" in st.session_state:
-        st.markdown(f"**Current User:** {st.session_state.user}")
-        if st.button("➕ New Chat"):
+        st.markdown(f"👤 **User:** {st.session_state.user}")
+        if st.button("➕ Start New Chat"):
             st.session_state.messages = []
             st.session_state.active_idx = None
             st.rerun()
         
         st.divider()
-        img_file = st.file_uploader("Attach Image", type=['png', 'jpg', 'jpeg'])
+        img_file = st.file_uploader("🖼️ Attach Image", type=['png', 'jpg', 'jpeg'])
         
         st.divider()
-        st.write("Chat History")
+        st.write("📂 History")
         logs = st.session_state.db["history"].get(st.session_state.user, [])
         for i, log in enumerate(reversed(logs)):
             if st.button(f"💬 {log.get('name', 'Chat')[:20]}", key=f"h_{i}"):
@@ -94,67 +102,69 @@ with st.sidebar:
                 st.session_state.active_idx = len(logs) - 1 - i
                 st.rerun()
         
+        st.divider()
         if st.button("🚪 Logout"):
             del st.session_state.user
             st.rerun()
 
-# --- 4. LOGIN SCREEN (With Terms) ---
+# --- 4. LOGIN & TERMS ---
 if "user" not in st.session_state:
     st.markdown("<h1 class='main-title'>Gobidas</h1>", unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1, 1.5, 1])
     with c2:
         mode = st.radio(" ", ["Log In", "Sign Up"], horizontal=True)
-        u = st.text_input("Name")
+        u = st.text_input("Username")
         p = st.text_input("Password", type="password")
         
-        st.markdown("### Terms & Privacy")
-        st.markdown("<div class='legal-box'>By logging in, you agree that chat data is stored for 30 days. The AI may generate incorrect info. No illegal prompts allowed.</div>", unsafe_allow_html=True)
-        agree = st.checkbox("I agree to the Terms and Privacy Policy")
+        st.markdown("#### Privacy & Security Terms")
+        st.markdown("<div class='legal-box'>By entering Gobidas AI, you agree that your login and chat data are stored for session context. Chats are auto-deleted every 30 days. AI responses should be verified for accuracy.</div>", unsafe_allow_html=True)
+        agree = st.checkbox("I accept the Terms and Privacy Policy")
         
-        if st.button("Enter", disabled=not agree):
+        if st.button("Access System", disabled=not agree):
             if mode == "Log In":
                 if u in st.session_state.db["users"] and st.session_state.db["users"][u] == p:
                     st.session_state.user = u
                     st.session_state.messages = []
                     st.rerun()
-                else: st.error("Wrong credentials.")
+                else: st.error("Invalid Username or Password.")
             else:
                 if u and p:
                     st.session_state.db["users"][u] = p
                     st.session_state.db["history"][u] = []
                     save_db(st.session_state.db)
-                    st.success("Account created! Log In now.")
+                    st.success("Account Ready! Please Log In.")
     st.stop()
 
-# --- 5. CHAT LOGIC (Using NEW Llama 3.2 90B Vision) ---
+# --- 5. CHAT AREA ---
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 st.markdown("<h1 class='main-title'>Gobidas AI</h1>", unsafe_allow_html=True)
 
+# Display Current Messages
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
-        if "image" in msg: st.image(msg["image"], width=300)
+        if "image" in msg: st.image(msg["image"], width=400)
 
-if prompt := st.chat_input("Ask Gobidas..."):
+# Input Logic
+if prompt := st.chat_input("Message Gobidas..."):
     msg_entry = {"role": "user", "content": prompt}
     if img_file: msg_entry["image"] = img_file.getvalue()
     st.session_state.messages.append(msg_entry)
     
     with st.chat_message("user"):
         st.markdown(prompt)
-        if img_file: st.image(img_file, width=300)
+        if img_file: st.image(img_file, width=400)
 
     with st.chat_message("assistant"):
         try:
             if img_file:
-                # Process Image for Vision Model
+                # Use current working Vision Model
                 img = Image.open(img_file).convert("RGB")
                 img.thumbnail((800, 800))
                 buf = io.BytesIO()
                 img.save(buf, format="JPEG")
                 b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
                 
-                # Switch to the non-decommissioned Vision Model
                 res = client.chat.completions.create(
                     model="llama-3.2-90b-vision-preview",
                     messages=[{"role": "user", "content": [
@@ -172,7 +182,7 @@ if prompt := st.chat_input("Ask Gobidas..."):
             st.markdown(ans)
             st.session_state.messages.append({"role": "assistant", "content": ans})
             
-            # Save History
+            # Persist History
             hist = st.session_state.db["history"].get(st.session_state.user, [])
             chat_summary = {"name": prompt[:25], "msgs": st.session_state.messages, "timestamp": time.time()}
             
