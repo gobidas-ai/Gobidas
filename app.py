@@ -4,7 +4,7 @@ import json, os, base64, io, time
 from PIL import Image
 import streamlit.components.v1 as components
 
-# --- 1. UI & STEALTH STYLE ---
+# --- 1. UI & TOTAL STEALTH STYLE ---
 st.set_page_config(page_title="Gobidas Beta", layout="wide")
 
 def get_base64(file):
@@ -13,7 +13,15 @@ def get_base64(file):
             return base64.b64encode(f.read()).decode()
     except: return ""
 
+# Session state for secret mode toggle
+if "secret_active" not in st.session_state:
+    st.session_state.secret_active = False
+
 bin_str = get_base64('background.jpg')
+# Fetching secret files based on your updated names
+sec_img_base64 = get_base64('secret_image.png')
+sec_audio_base64 = get_base64('secret_music.mp3')
+
 st.markdown(f"""
 <style>
     header, [data-testid="stHeader"], .stDeployButton, [data-testid="stToolbar"], 
@@ -25,31 +33,61 @@ st.markdown(f"""
                     url("data:image/jpeg;base64,{bin_str}");
         background-size: cover; background-position: center; background-attachment: fixed;
     }}
-    .main-title {{
-        font-weight: 900; color: #FF6D00; text-align: center; font-size: 5rem;
-        text-shadow: 0px 0px 20px rgba(255, 109, 0, 0.5); margin-bottom: 5px;
-    }}
-    .welcome-msg {{ text-align: center; color: #aaa; font-size: 1.1rem; margin-bottom: 30px; }}
-    .stButton>button {{
-        width: 100%; border-radius: 10px; background: transparent !important;
-        color: white !important; border: 1px solid #FF6D00 !important;
-        font-weight: 600; transition: 0.2s all; height: 3em;
-    }}
-    .stButton>button:hover:not(:disabled) {{
-        background: #FF6D00 !important; color: black !important;
-    }}
     [data-testid="stSidebar"] {{
         background: rgba(0, 0, 0, 0.95) !important;
-        backdrop-filter: blur(20px); border-right: 1px solid #FF6D00;
+        backdrop-filter: blur(25px); border-right: 2px solid #FF6D00;
+    }}
+    .main-title {{
+        font-weight: 900; color: #FF6D00; text-align: center; font-size: 5.5rem;
+        text-shadow: 0px 0px 25px rgba(255, 109, 0, 0.6); margin-bottom: 0px;
+    }}
+    .welcome-text {{
+        text-align: center; color: #bbb; font-size: 1.2rem; margin-top: -20px; margin-bottom: 30px;
+    }}
+    .stButton>button {{
+        width: 100%; border-radius: 12px; background: transparent !important;
+        color: white !important; border: 2px solid #FF6D00 !important;
+        font-weight: 600; transition: 0.3s all ease-in-out; height: 3em;
+    }}
+    .stButton>button:hover:not(:disabled) {{
+        background: #FF6D00 !important; box-shadow: 0px 0px 30px rgba(255, 109, 0, 0.9);
+        color: black !important;
     }}
     .legal-box {{
-        background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px;
-        font-size: 0.8rem; color: #999; height: 250px; overflow-y: scroll; border: 1px solid rgba(255,109,0,0.2);
+        height: 450px; overflow-y: scroll; background: rgba(0,0,0,0.6); 
+        padding: 25px; border: 1px solid #FF6D00; color: #ccc; border-radius: 10px;
+        line-height: 1.8; font-size: 0.95rem;
+    }}
+    /* SECRET OVERLAY */
+    .secret-container {{
+        position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+        background-color: black; z-index: 999999;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+    }}
+    .secret-img {{
+        max-width: 100%; max-height: 100%; object-fit: contain;
     }}
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. DATABASE ---
+# --- 2. SECRET FEATURE LOGIC ---
+if st.session_state.secret_active:
+    st.markdown(f"""
+    <div class="secret-container">
+        <img src="data:image/png;base64,{sec_img_base64}" class="secret-img">
+        <audio autoplay loop>
+            <source src="data:audio/mp3;base64,{sec_audio_base64}" type="audio/mp3">
+        </audio>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Positioned at the bottom for easy exit
+    if st.button("EXIT SENSIBLE INFO"):
+        st.session_state.secret_active = False
+        st.rerun()
+    st.stop()
+
+# --- 3. STORAGE & DB ---
 DB_FILE = "gobidas_db.json"
 def load_db():
     if os.path.exists(DB_FILE):
@@ -64,27 +102,45 @@ def save_db(data):
 if "db" not in st.session_state:
     st.session_state.db = load_db()
 
-# --- 3. LOGIN PAGE ---
+# --- 4. EXTENDED TERMS & POLICY ---
+def show_legal_content():
+    st.markdown("### Gobidas Global Terms of Service & Privacy Protocol")
+    st.markdown("""<div class='legal-box'>
+        <b>ARTICLE 1: AGREEMENT TO TERMS</b><br>
+        These Terms of Service constitute a legally binding agreement made between you, whether personally or on behalf of an entity, and Gobidas AI regarding your access to and use of the platform. By checking the agreement box, you confirm you have read and understood the entirety of these protocols.<br><br>
+        <b>ARTICLE 2: INTELLECTUAL PROPERTY RIGHTS</b><br>
+        Unless otherwise indicated, the Site is our proprietary property and all source code, databases, functionality, software, website designs, audio, video, text, photographs, and graphics on the Site. Your outputs are governed by the Meta Llama Community License.<br><br>
+        <b>ARTICLE 3: BETA PHASE DISCLAIMER</b><br>
+        You acknowledge that Gobidas is currently in an experimental "Beta" phase. The interface utilizes high-parameter neural networks (Llama 4 Scout and Maverick). These models are prone to generating "hallucinations"—outputs that are factually incorrect or nonsensical. Users are advised to verify all critical information independently.<br><br>
+        <b>ARTICLE 4: USER DATA & PRIVACY PROTOCOL</b><br>
+        Data privacy is fundamental to our architecture. All chat logs and credentials are stored within a local JSON-based database (`gobidas_db.json`). We do not utilize persistent cloud storage for your conversations. To optimize local performance, any logs older than 30 standard days are subject to automated deletion.<br><br>
+        <b>ARTICLE 5: PROHIBITED ACTIVITIES</b><br>
+        Users may not access or use the Site for any purpose other than that for which we make the Site available. Prohibited activities include, but are not limited to:
+        <ul>
+            <li>Attempting to bypass security measures or access restricted system files.</li>
+            <li>Generating content intended to harass, threaten, or promote violence.</li>
+            <li>Using the AI to develop malware or engage in phishing operations.</li>
+            <li>Using automated scripts to scrape data from the interface.</li>
+        </ul><br>
+        <b>ARTICLE 6: LIMITATION OF LIABILITY</b><br>
+        In no event will we or our developers be liable to you or any third party for any direct, indirect, consequential, exemplary, incidental, special, or punitive damages, including lost profit, lost revenue, or loss of data arising from your use of the AI.<br><br>
+        <b>ARTICLE 7: GOVERNING LAW</b><br>
+        These terms and your use of the Site are governed by and construed in accordance with the laws of the jurisdiction in which the developer resides, without regard to its conflict of law principles.
+    </div>""", unsafe_allow_html=True)
+
+# --- 5. LOGIN LOGIC ---
 if "user" not in st.session_state:
-    st.markdown("<h1 class='main-title'>GOBIDAS</h1>", unsafe_allow_html=True)
-    st.markdown("<p class='welcome-msg'>Secure access to Llama 4 Scout & Maverick</p>", unsafe_allow_html=True)
+    st.markdown("<h1 class='main-title'>Gobidas</h1>", unsafe_allow_html=True)
+    st.markdown("<p class='welcome-text'>Secure access to Llama 4 Scout & Maverick Engines.</p>", unsafe_allow_html=True)
     
-    _, col, _ = st.columns([1, 1.2, 1])
+    _, col, _ = st.columns([1, 1.8, 1])
     with col:
         mode = st.radio("Access Mode", ["Log In", "Sign Up"], horizontal=True, label_visibility="collapsed")
-        u = st.text_input("Username", placeholder="Username")
+        u = st.text_input("Name", placeholder="Username")
         p = st.text_input("Password", type="password", placeholder="Password")
         
-        st.write("### Terms and Policy")
-        st.markdown("""<div class='legal-box'>
-        <b>1. Usage:</b> You are accessing an experimental AI interface. <br><br>
-        <b>2. Models:</b> This app utilizes Llama 4 Scout (Vision) and Maverick (Text). Outputs may be inaccurate.<br><br>
-        <b>3. Privacy:</b> Your data is stored locally in your session database. We do not sell or share personal information.<br><br>
-        <b>4. Storage:</b> Chat history is kept for 30 days before being automatically cleared from the local file.<br><br>
-        <b>5. Responsibility:</b> You are responsible for all content generated. Do not use for illegal purposes.
-        </div>""", unsafe_allow_html=True)
-        
-        agree = st.checkbox("I agree to the terms and privacy policy")
+        show_legal_content()
+        agree = st.checkbox("I verify that I have read and agree to all Articles above")
         
         if st.button("ENTER", disabled=not agree):
             db = st.session_state.db
@@ -93,52 +149,55 @@ if "user" not in st.session_state:
                     st.session_state.user = u
                     st.session_state.messages = []
                     st.rerun()
-                else: st.error("Invalid Username or Password")
+                else: st.error("Access Denied: Invalid Username/Password.")
             else:
                 if u and p:
                     db["users"][u] = p
                     db["history"][u] = []
                     save_db(db)
-                    st.success("Account created! Switch to Log In.")
+                    st.success("Account Created. Select 'Log In' to proceed.")
     st.stop()
 
-# --- 4. SIDEBAR & HISTORY ---
+# --- 6. SIDEBAR & SETTINGS ---
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 with st.sidebar:
-    st.write(f"Logged in as: **{st.session_state.user}**")
+    st.markdown(f"### Logged: **{st.session_state.user}**")
     if st.button("New Chat"):
         st.session_state.messages = []
         st.session_state.active_idx = None
         st.rerun()
     
     st.divider()
-    img_file = st.file_uploader("Image Upload (Vision)", type=['png', 'jpg', 'jpeg'])
+    with st.expander("⚙️ System Settings"):
+        if st.button("SENSIBLE INFO"):
+            st.session_state.secret_active = True
+            st.rerun()
+            
+    img_file = st.file_uploader("Upload Image (Vision Engine)", type=['png', 'jpg', 'jpeg'])
     
     st.divider()
-    st.write("#### History")
+    st.write("#### History Logs")
     logs = st.session_state.db["history"].get(st.session_state.user, [])
     for i, log in enumerate(reversed(logs)):
-        # Formatting history names to Title Case (No more all caps)
-        chat_name = log.get('name', 'New Chat').title()
-        if st.button(f" {chat_name[:25]}", key=f"h_{i}"):
+        chat_name = log.get('name', 'Chat Session').title()
+        if st.button(f"📄 {chat_name[:22]}", key=f"h_{i}"):
             st.session_state.messages = log.get("msgs", [])
             st.session_state.active_idx = len(logs) - 1 - i
             st.rerun()
-    
-    st.divider()
-    if st.button("Sign Out"):
+            
+    if st.button("Sign Out Session"):
         del st.session_state.user
         st.rerun()
 
-# --- 5. MAIN CHAT ---
-st.markdown("<h1 class='main-title'>GOBIDAS</h1>", unsafe_allow_html=True)
+# --- 7. CHAT INTERFACE ---
+st.markdown("<h1 class='main-title'>Gobidas</h1>", unsafe_allow_html=True)
 
-for m in st.session_state.messages:
-    with st.chat_message(m["role"]):
-        st.markdown(m["content"])
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
 
-if prompt := st.chat_input("Ask Gobidas..."):
+if prompt := st.chat_input("Command Gobidas..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
@@ -147,13 +206,12 @@ if prompt := st.chat_input("Ask Gobidas..."):
     with st.chat_message("assistant"):
         try:
             if img_file:
-                # MODEL: LLAMA 4 SCOUT
+                # LLAMA 4 SCOUT (VISION)
                 img = Image.open(img_file).convert("RGB")
                 img.thumbnail((800, 800))
                 buf = io.BytesIO()
                 img.save(buf, format="JPEG")
                 b64 = base64.b64encode(buf.getvalue()).decode()
-                
                 res = client.chat.completions.create(
                     model="meta-llama/llama-4-scout-17b-16e-instruct",
                     messages=[{"role": "user", "content": [
@@ -162,7 +220,7 @@ if prompt := st.chat_input("Ask Gobidas..."):
                     ]}]
                 )
             else:
-                # MODEL: LLAMA 4 MAVERICK
+                # LLAMA 4 MAVERICK (TEXT)
                 res = client.chat.completions.create(
                     model="meta-llama/llama-4-maverick-17b-128e-instruct",
                     messages=[{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
@@ -172,15 +230,15 @@ if prompt := st.chat_input("Ask Gobidas..."):
             st.markdown(ans)
             st.session_state.messages.append({"role": "assistant", "content": ans})
             
-            # Update History
+            # Save History with auto-naming
             hist = st.session_state.db["history"].get(st.session_state.user, [])
-            chat_entry = {"name": prompt[:30], "msgs": st.session_state.messages, "timestamp": time.time()}
+            chat_data = {"name": prompt[:30], "msgs": st.session_state.messages, "timestamp": time.time()}
             if st.session_state.get("active_idx") is None:
-                hist.append(chat_entry)
+                hist.append(chat_data)
                 st.session_state.active_idx = len(hist) - 1
             else:
-                hist[st.session_state.active_idx] = chat_entry
+                hist[st.session_state.active_idx] = chat_data
             st.session_state.db["history"][st.session_state.user] = hist
             save_db(st.session_state.db)
         except Exception as e:
-            st.error(f"Error: {e}")
+            st.error(f"System Inference Error: {e}")
