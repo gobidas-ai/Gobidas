@@ -18,7 +18,6 @@ if "secret_active" not in st.session_state:
     st.session_state.secret_active = False
 
 bin_str = get_base64('background.jpg')
-# Fetching secret files based on your updated names
 sec_img_base64 = get_base64('secret_image.png')
 sec_audio_base64 = get_base64('secret_music.mp3')
 
@@ -58,6 +57,7 @@ st.markdown(f"""
         padding: 25px; border: 1px solid #FF6D00; color: #ccc; border-radius: 10px;
         line-height: 1.8; font-size: 0.95rem;
     }}
+    
     /* SECRET OVERLAY */
     .secret-container {{
         position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
@@ -65,7 +65,10 @@ st.markdown(f"""
         display: flex; flex-direction: column; align-items: center; justify-content: center;
     }}
     .secret-img {{
-        max-width: 100%; max-height: 100%; object-fit: contain;
+        max-width: 100%; max-height: 85%; object-fit: contain;
+    }}
+    .exit-btn-container {{
+        position: fixed; bottom: 20px; z-index: 1000000; width: 200px;
     }}
 </style>
 """, unsafe_allow_html=True)
@@ -81,10 +84,14 @@ if st.session_state.secret_active:
     </div>
     """, unsafe_allow_html=True)
     
-    # Positioned at the bottom for easy exit
-    if st.button("EXIT SENSIBLE INFO"):
-        st.session_state.secret_active = False
-        st.rerun()
+    # Placing button in a dedicated container to ensure visibility
+    _, btn_col, _ = st.columns([1, 0.5, 1])
+    with btn_col:
+        st.markdown('<div class="exit-btn-container">', unsafe_allow_html=True)
+        if st.button("EXIT INFO"):
+            st.session_state.secret_active = False
+            st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
     st.stop()
 
 # --- 3. STORAGE & DB ---
@@ -107,25 +114,19 @@ def show_legal_content():
     st.markdown("### Gobidas Global Terms of Service & Privacy Protocol")
     st.markdown("""<div class='legal-box'>
         <b>ARTICLE 1: AGREEMENT TO TERMS</b><br>
-        These Terms of Service constitute a legally binding agreement made between you, whether personally or on behalf of an entity, and Gobidas AI regarding your access to and use of the platform. By checking the agreement box, you confirm you have read and understood the entirety of these protocols.<br><br>
-        <b>ARTICLE 2: INTELLECTUAL PROPERTY RIGHTS</b><br>
-        Unless otherwise indicated, the Site is our proprietary property and all source code, databases, functionality, software, website designs, audio, video, text, photographs, and graphics on the Site. Your outputs are governed by the Meta Llama Community License.<br><br>
-        <b>ARTICLE 3: BETA PHASE DISCLAIMER</b><br>
-        You acknowledge that Gobidas is currently in an experimental "Beta" phase. The interface utilizes high-parameter neural networks (Llama 4 Scout and Maverick). These models are prone to generating "hallucinations"—outputs that are factually incorrect or nonsensical. Users are advised to verify all critical information independently.<br><br>
-        <b>ARTICLE 4: USER DATA & PRIVACY PROTOCOL</b><br>
-        Data privacy is fundamental to our architecture. All chat logs and credentials are stored within a local JSON-based database (`gobidas_db.json`). We do not utilize persistent cloud storage for your conversations. To optimize local performance, any logs older than 30 standard days are subject to automated deletion.<br><br>
-        <b>ARTICLE 5: PROHIBITED ACTIVITIES</b><br>
-        Users may not access or use the Site for any purpose other than that for which we make the Site available. Prohibited activities include, but are not limited to:
-        <ul>
-            <li>Attempting to bypass security measures or access restricted system files.</li>
-            <li>Generating content intended to harass, threaten, or promote violence.</li>
-            <li>Using the AI to develop malware or engage in phishing operations.</li>
-            <li>Using automated scripts to scrape data from the interface.</li>
-        </ul><br>
-        <b>ARTICLE 6: LIMITATION OF LIABILITY</b><br>
-        In no event will we or our developers be liable to you or any third party for any direct, indirect, consequential, exemplary, incidental, special, or punitive damages, including lost profit, lost revenue, or loss of data arising from your use of the AI.<br><br>
-        <b>ARTICLE 7: GOVERNING LAW</b><br>
-        These terms and your use of the Site are governed by and construed in accordance with the laws of the jurisdiction in which the developer resides, without regard to its conflict of law principles.
+        By accessing this Site, you confirm you have read, understood, and agreed to be bound by these Terms. If you do not agree, you must cease use immediately.<br><br>
+        <b>ARTICLE 2: INTELLECTUAL PROPERTY</b><br>
+        The content, code, and design are proprietary to Gobidas AI. AI outputs are licensed under the Llama 4 Community License Protocol.<br><br>
+        <b>ARTICLE 3: EXPERIMENTAL NATURE</b><br>
+        This platform uses Beta-stage neural networks (Llama 4 Scout/Maverick). Responses are probabilistic and can contain inaccuracies. Users are responsible for verifying AI-generated data.<br><br>
+        <b>ARTICLE 4: DATA PRIVACY & SECURITY</b><br>
+        Conversations and credentials stay in a local JSON database. We do not transmit personal logs to external cloud storage. Automated purges occur every 30 days to protect system integrity.<br><br>
+        <b>ARTICLE 5: USER RESPONSIBILITY</b><br>
+        Users are strictly prohibited from using this AI for illegal activities, malware development, or generating harmful content. Violation results in a permanent session ban.<br><br>
+        <b>ARTICLE 6: LIABILITY LIMITS</b><br>
+        The developers are not liable for any damages—direct or indirect—resulting from your use of this experimental AI interface.<br><br>
+        <b>ARTICLE 7: UPDATES</b><br>
+        We reserve the right to change these terms at any time without prior notice.
     </div>""", unsafe_allow_html=True)
 
 # --- 5. LOGIN LOGIC ---
@@ -149,7 +150,7 @@ if "user" not in st.session_state:
                     st.session_state.user = u
                     st.session_state.messages = []
                     st.rerun()
-                else: st.error("Access Denied: Invalid Username/Password.")
+                else: st.error("Access Denied.")
             else:
                 if u and p:
                     db["users"][u] = p
@@ -170,7 +171,7 @@ with st.sidebar:
     
     st.divider()
     with st.expander("⚙️ System Settings"):
-        if st.button("SENSIBLE INFO"):
+        if st.button("SMALL INFO ABOUT THE CREATOR"):
             st.session_state.secret_active = True
             st.rerun()
             
@@ -230,7 +231,7 @@ if prompt := st.chat_input("Command Gobidas..."):
             st.markdown(ans)
             st.session_state.messages.append({"role": "assistant", "content": ans})
             
-            # Save History with auto-naming
+            # Save History
             hist = st.session_state.db["history"].get(st.session_state.user, [])
             chat_data = {"name": prompt[:30], "msgs": st.session_state.messages, "timestamp": time.time()}
             if st.session_state.get("active_idx") is None:
