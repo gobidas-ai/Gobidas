@@ -1,40 +1,35 @@
 import streamlit as st
 from groq import Groq
 import json, os, base64, io, time
-from PIL import Image
 
-# --- 1. UI & STYLING ---
-st.set_page_config(page_title="Gobidas Beta", layout="wide", initial_sidebar_state="expanded")
+# --- 1. UI & BACKGROUND ---
+st.set_page_config(page_title="Gobidas Beta", layout="wide")
 
-st.markdown("""
+def get_base64(file):
+    try:
+        with open(file, 'rb') as f: return base64.b64encode(f.read()).decode()
+    except: return ""
+
+# Restoring your background
+bg_img = get_base64('background.jpg')
+
+st.markdown(f"""
 <style>
-    /* FORCE DARK UI */
-    html, body, [data-testid="stAppViewContainer"] { color-scheme: dark !important; background-color: #0b0d11 !important; }
-    header[data-testid="stHeader"] { visibility: visible !important; background: rgba(0,0,0,0.8) !important; }
-    footer { visibility: hidden; }
-    
-    /* SIDEBAR CUSTOMIZATION */
-    [data-testid="stSidebar"] { background: #000000 !important; border-right: 3px solid #FF6D00; }
-    
-    /* TYPOGRAPHY */
-    .main-title { font-weight: 900; color: #FF6D00; text-align: center; font-size: 5.5rem; letter-spacing: -2px; }
-    
-    /* LEGAL SCROLL BOX */
-    .legal-box { 
-        font-size: 0.9rem; 
-        color: #e0e0e0; 
-        background: rgba(20, 20, 20, 0.9); 
-        padding: 40px; 
-        border-radius: 15px; 
-        border: 2px solid #FF6D00; 
-        line-height: 1.9; 
-        height: 600px; 
-        overflow-y: scroll; 
-    }
+    [data-testid="stAppViewContainer"] {{
+        background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.7)), 
+                    url("data:image/jpeg;base64,{bg_img}");
+        background-size: cover;
+        background-attachment: fixed;
+    }}
+    .main-title {{ font-size: 5rem; color: #FF6D00; text-align: center; font-weight: 900; text-shadow: 2px 2px 10px #000; }}
+    .stButton>button {{ background: transparent; border: 2px solid #FF6D00; color: white; width: 100%; border-radius: 10px; }}
+    .stButton>button:hover {{ background: #FF6D00; color: black; }}
+    [data-testid="stSidebar"] {{ background: rgba(0,0,0,0.9) !important; border-right: 2px solid #FF6D00; }}
+    .legal-box {{ height: 350px; overflow-y: scroll; background: rgba(0,0,0,0.5); padding: 20px; border: 1px solid #FF6D00; color: #ccc; border-radius: 10px; }}
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. DATA PERSISTENCE ---
+# --- 2. DATABASE ---
 DB_FILE = "gobidas_db.json"
 def load_db():
     if os.path.exists(DB_FILE):
@@ -49,132 +44,111 @@ def save_db(data):
 if "db" not in st.session_state:
     st.session_state.db = load_db()
 
-# --- 3. NAVIGATION ---
-with st.sidebar:
-    st.title("Gobidas Terminal")
-    if "user" in st.session_state:
-        st.info(f"Session: {st.session_state.user}")
-        if st.button("Clear / New Chat"):
-            st.session_state.messages = []
-            st.session_state.active_idx = None
-            st.rerun()
-        
-        st.divider()
-        img_file = st.file_uploader("Vision Input (Upload Image)", type=['png', 'jpg', 'jpeg'])
-        
-        st.divider()
-        st.subheader("Archives")
-        logs = st.session_state.db["history"].get(st.session_state.user, [])
-        for i, log in enumerate(reversed(logs)):
-            if st.button(f"📄 {log.get('name', 'Entry')[:20]}", key=f"h_{i}"):
-                st.session_state.messages = log.get("msgs", [])
-                st.session_state.active_idx = len(logs) - 1 - i
-                st.rerun()
-        
-        if st.button("Sign Out"):
-            del st.session_state.user
-            st.rerun()
-
-# --- 4. AUTHENTICATION & EXTENDED TERMS ---
+# --- 3. SIMPLE LOGIN / SIGN UP ---
 if "user" not in st.session_state:
-    st.markdown("<h1 class='main-title'>GOBIDAS</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 class='main-title'>Gobidas</h1>", unsafe_allow_html=True)
+    st.warning("Website in beta: data loss may occur. Enjoy Gobidas!")
     
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        tab_l, tab_s = st.tabs(["Secure Login", "Register Account"])
-        with tab_l:
-            u_i, p_i = st.text_input("User"), st.text_input("Pass", type="password")
-        with tab_s:
-            u_r, p_r = st.text_input("New User"), st.text_input("New Pass", type="password")
-
-        st.markdown("### Extended Terms and Conditions of Use")
-        st.markdown("""
-        <div class='legal-box'>
-            <strong>ARTICLE I: SCOPE OF SERVICE</strong><br>
-            Gobidas AI is a multi-modal interface providing access to advanced neural networks. This platform is currently in a Public Beta testing phase.<br><br>
-            <strong>ARTICLE II: DATA INTEGRITY NOTICE</strong><br>
-            During the Beta phase, database stability is not guaranteed. User credentials and interaction histories are subject to deletion, corruption, or resetting without prior notice to the user base. Do not use this service for long-term critical storage.<br><br>
-            <strong>ARTICLE III: USER PRIVACY</strong><br>
-            We collect usernames and hashed password data. Chat logs are stored in a local JSON file to enable the "Archives" feature. We do not transmit this data to advertising entities or third-party data brokers.<br><br>
-            <strong>ARTICLE IV: PROHIBITED CONDUCT</strong><br>
-            Users are strictly prohibited from utilizing Gobidas to generate:
-            <ul>
-                <li>Harmful, illegal, or sexually explicit content.</li>
-                <li>Hate speech or discriminatory rhetoric.</li>
-                <li>Malicious code or deceptive phishing materials.</li>
-            </ul><br>
-            <strong>ARTICLE V: INTELLECTUAL PROPERTY</strong><br>
-            Outputs generated by the AI are subject to the licensing terms of the model providers (DeepSeek). Users retain the right to their specific prompts.<br><br>
-            <strong>ARTICLE VI: AI HALLUCINATIONS</strong><br>
-            The AI utilizes deep learning and may produce factually incorrect statements. Gobidas is not responsible for any misinformation generated. Always cross-reference critical data.<br><br>
-            <strong>ARTICLE VII: TECHNICAL COOKIES</strong><br>
-            This site uses session cookies solely for authentication state. No tracking pixels or cross-site marketing cookies are deployed.<br><br>
-            <strong>ARTICLE VIII: LIMITATION OF LIABILITY</strong><br>
-            The developers of Gobidas shall not be held liable for any direct or indirect damages resulting from system downtime or the use of AI outputs.<br><br>
-            <strong>ARTICLE IX: TERMINATION OF ACCESS</strong><br>
-            We reserve the right to suspend any account found to be in violation of these safety and usage guidelines.<br><br>
-            <strong>ARTICLE X: AMENDMENTS</strong><br>
-            These terms may be updated as Gobidas moves from Beta to Version 1.0.
-        </div>
-        """, unsafe_allow_html=True)
+    c1, c2, c3 = st.columns([1, 2, 1])
+    with c2:
+        mode = st.radio("Action", ["Log in", "Sign up"], horizontal=True)
+        u = st.text_input("Username")
+        p = st.text_input("Password", type="password")
         
-        if st.button("Enter Platform", disabled=not st.checkbox("I have read and agree to the 10 Articles above")):
+        st.write("### Terms and Policy")
+        st.markdown("""<div class='legal-box'>
+            1. <b>BETA STATUS:</b> This is a testing environment. Data may be cleared without notice.<br><br>
+            2. <b>DATA:</b> We store your username and chat history locally for your convenience.<br><br>
+            3. <b>CONTENT:</b> Do not generate illegal, harmful, or toxic content.<br><br>
+            4. <b>ACCURACY:</b> AI can hallucinate. Do not rely on it for medical or legal advice.<br><br>
+            5. <b>PRIVACY:</b> We do not sell your data to third parties.
+        </div>""", unsafe_allow_html=True)
+        
+        if st.button("Enter") if st.checkbox("I agree to the terms") else st.button("Enter", disabled=True):
             db = st.session_state.db
-            if u_i and p_i:
-                if u_i in db["users"] and db["users"][u_i] == p_i:
-                    st.session_state.user = u_i
+            if mode == "Log in":
+                if u in db["users"] and db["users"][u] == p:
+                    st.session_state.user = u
                     st.session_state.messages = []
                     st.rerun()
-                else: st.error("Invalid Login.")
-            elif u_r and p_r:
-                db["users"][u_r] = p_r
-                db["history"][u_r] = []
-                save_db(db)
-                st.success("Account Created.")
+                else: st.error("Wrong Username or Password.")
+            else:
+                if u and p:
+                    db["users"][u] = p
+                    db["history"][u] = []
+                    save_db(db)
+                    st.success("Account created! You can now Log in.")
     st.stop()
 
-# --- 5. DEEPSEEK V3 ENGINE ---
+# --- 4. CHAT ENGINE (NO LLAMA) ---
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+
+with st.sidebar:
+    st.write(f"Logged in as: **{st.session_state.user}**")
+    if st.button("New Chat"):
+        st.session_state.messages = []
+        st.session_state.active_idx = None
+        st.rerun()
+    
+    img_file = st.file_uploader("Upload Image for AI", type=['png', 'jpg', 'jpeg'])
+    
+    st.divider()
+    st.write("### History")
+    logs = st.session_state.db["history"].get(st.session_state.user, [])
+    for i, log in enumerate(reversed(logs)):
+        if st.button(f"{log['name'][:20]}", key=f"h_{i}"):
+            st.session_state.messages = log["msgs"]
+            st.session_state.active_idx = len(logs) - 1 - i
+            st.rerun()
+            
+    if st.button("Log out"):
+        del st.session_state.user
+        st.rerun()
+
 st.markdown("<h1 class='main-title'>Gobidas AI</h1>", unsafe_allow_html=True)
 
 for m in st.session_state.messages:
     with st.chat_message(m["role"]):
         st.markdown(m["content"])
-        if "img" in m: st.image(f"data:image/jpeg;base64,{m['img']}", width=450)
+        if "img" in m: st.image(f"data:image/jpeg;base64,{m['img']}", width=400)
 
-if prompt := st.chat_input("Command DeepSeek-V3..."):
+if prompt := st.chat_input("Message Gobidas..."):
     entry = {"role": "user", "content": prompt}
     b64 = None
     if img_file:
-        b64 = base64.b64encode(img_file.getvalue()).decode()
+        b64 = base64.b64encode(img_file.read()).decode()
         entry["img"] = b64
 
     st.session_state.messages.append(entry)
     with st.chat_message("user"):
         st.markdown(prompt)
-        if b64: st.image(img_file, width=450)
+        if b64: st.image(img_file, width=400)
 
     with st.chat_message("assistant"):
         try:
-            # INTEGRATING DEEPSEEK-V3
-            response = client.chat.completions.create(
-                model="deepseek-v3", 
+            # Using Mixtral-8x7b-32768 (NO LLAMA)
+            # Note: For real vision, Groq currently requires specific vision models. 
+            # I am using Mixtral as the primary text engine to avoid Llama.
+            res = client.chat.completions.create(
+                model="mixtral-8x7b-32768",
                 messages=[{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
             )
-            ans = response.choices[0].message.content
+            
+            ans = res.choices[0].message.content
             st.markdown(ans)
             st.session_state.messages.append({"role": "assistant", "content": ans})
             
-            # SAVE PROCESS
+            # Save to JSON
             hist = st.session_state.db["history"].get(st.session_state.user, [])
-            chat_obj = {"name": prompt[:30], "msgs": st.session_state.messages}
+            chat_obj = {"name": prompt[:20], "msgs": st.session_state.messages}
+            
             if st.session_state.get("active_idx") is None:
                 hist.append(chat_obj)
                 st.session_state.active_idx = len(hist) - 1
             else:
                 hist[st.session_state.active_idx] = chat_obj
+            
             st.session_state.db["history"][st.session_state.user] = hist
             save_db(st.session_state.db)
         except Exception as e:
-            st.error(f"System Error: {e}")
-        
+            st.error(f"Error: {e}")
