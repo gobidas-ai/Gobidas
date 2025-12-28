@@ -1,9 +1,10 @@
 import streamlit as st
 from groq import Groq
-import json, os, base64, io
+import json, os, base64, io, time
 from PIL import Image
+import streamlit.components.v1 as components
 
-# --- 1. UI & STEALTH STYLE ---
+# --- 1. UI & TOTAL STEALTH STYLE ---
 st.set_page_config(page_title="Gobidas Beta", layout="wide")
 
 def get_base64(file):
@@ -15,74 +16,64 @@ try:
     bin_str = get_base64('background.jpg')
     st.markdown(f"""
     <style>
-    /* HIDE STREAMLIT BRANDING & UI ELEMENTS */
-    #MainMenu {{visibility: hidden;}}
-    footer {{visibility: hidden;}}
-    header {{visibility: hidden;}}
-    .stDeployButton {{display:none;}}
-    [data-testid="stToolbar"] {{display: none !important;}}
-    [data-testid="stDecoration"] {{display: none !important;}}
-    [data-testid="stManageAppButton"] {{display: none !important;}}
-
-    /* Background */
+    header, [data-testid="stHeader"], .stDeployButton, [data-testid="stToolbar"], 
+    footer, [data-testid="stStatusWidget"], [data-testid="stManageAppButton"] {{
+        visibility: hidden !important; display: none !important;
+    }}
     .stApp {{
         background: linear-gradient(rgba(0,0,0,0.65), rgba(0,0,0,0.85)), 
                     url("data:image/jpeg;base64,{bin_str}");
-        background-size: cover;
-        background-position: center;
-        background-attachment: fixed;
+        background-size: cover; background-position: center; background-attachment: fixed;
     }}
-
-    /* Sidebar */
     [data-testid="stSidebar"] {{
         background: rgba(0, 0, 0, 0.9) !important;
-        backdrop-filter: blur(25px);
-        border-right: 2px solid #FF6D00;
+        backdrop-filter: blur(25px); border-right: 2px solid #FF6D00;
     }}
-
-    /* Title */
     .main-title {{
-        font-weight: 900;
-        color: #FF6D00;
-        text-align: center;
-        font-size: 5rem;
+        font-weight: 900; color: #FF6D00; text-align: center; font-size: 5rem;
         text-shadow: 0px 0px 25px rgba(255, 109, 0, 0.6);
     }}
-
-    /* Hover Glow Buttons */
     .stButton>button {{
-        width: 100%;
-        border-radius: 12px;
-        background: transparent !important;
-        color: white !important;
-        border: 2px solid #FF6D00 !important;
-        font-weight: 600;
-        transition: 0.3s all ease-in-out;
+        width: 100%; border-radius: 12px; background: transparent !important;
+        color: white !important; border: 2px solid #FF6D00 !important;
+        font-weight: 600; transition: 0.3s all ease-in-out;
     }}
-    .stButton>button:hover {{
-        background: #FF6D00 !important;
-        box-shadow: 0px 0px 30px rgba(255, 109, 0, 0.9);
+    .stButton>button:hover:not(:disabled) {{
+        background: #FF6D00 !important; box-shadow: 0px 0px 30px rgba(255, 109, 0, 0.9);
         color: black !important;
     }}
-
-    /* Chat Bubbles */
     .stChatMessage {{
-        background: rgba(255, 255, 255, 0.07) !important;
-        backdrop-filter: blur(15px);
-        border-radius: 20px !important;
-        border: 1px solid rgba(255, 109, 0, 0.3) !important;
+        background: rgba(255, 255, 255, 0.07) !important; backdrop-filter: blur(15px);
+        border-radius: 20px !important; border: 1px solid rgba(255, 109, 0, 0.3) !important;
     }}
     </style>
     """, unsafe_allow_html=True)
+
+    components.html("""
+        <script>
+        const observer = new MutationObserver(() => {
+            window.parent.document.querySelectorAll('button').forEach(btn => {
+                if (btn.innerText.includes('Manage app')) btn.parentElement.style.display = 'none';
+            });
+        });
+        observer.observe(window.parent.document.body, { childList: true, subtree: true });
+        </script>
+    """, height=0)
 except:
     st.error("Missing background.jpg")
 
-# --- 2. STORAGE ---
+# --- 2. STORAGE & AUTO-DELETE ---
 DB_FILE = "gobidas_db.json"
 def load_db():
     if os.path.exists(DB_FILE):
         try:
-            with open(DB_FILE, "r") as f: return json.load(f)
+            with open(DB_FILE, "r") as f: 
+                data = json.load(f)
+                now = time.time()
+                cutoff = 30 * 24 * 60 * 60
+                for user in data["history"]:
+                    data["history"][user] = [c for c in data["history"][user] if (now - c.get("timestamp", now)) < cutoff]
+                return data
         except: pass
     return {"users": {}, "history": {}}
 
@@ -92,7 +83,49 @@ def save_db(data):
 if "db" not in st.session_state:
     st.session_state.db = load_db()
 
-# --- 3. LOGIN ---
+# --- 3. LEGAL CONTENT ---
+def show_legal_content():
+    st.markdown("## Terms of Service & Privacy Policy")
+    st.warning("**BETA NOTICE:** Gobidas Artificial Intelligence is currently in beta. You may experience errors, hallucinations, or unexpected behavior.")
+    st.markdown("### 1. Liability")
+    st.write("The developer of Gobidas is NOT responsible for any output generated by the AI. Legal responsibility lies with the AI model creators (Meta/Groq).")
+    st.markdown("### 2. Privacy")
+    st.write("Data is stored locally for 30 days and then auto-deleted. We do not sell your data.")
+
+# --- 4. SIDEBAR (ALWAYS ACTIVE) ---
+if "show_settings" not in st.session_state: st.session_state.show_settings = False
+
+with st.sidebar:
+    if st.button("⚙️"):
+        st.session_state.show_settings = not st.session_state.show_settings
+    
+    if st.session_state.show_settings:
+        st.markdown("### Settings")
+        with st.expander("Privacy and Terms"):
+            show_legal_content()
+        if st.button("Close Settings"):
+            st.session_state.show_settings = False
+            st.rerun()
+    
+    # Only show these if user is logged in
+    if "user" in st.session_state:
+        st.markdown(f"### Welcome, {st.session_state.user}")
+        if st.button("New Chat"):
+            st.session_state.messages = []
+            st.session_state.active_idx = None
+            st.rerun()
+        st.divider()
+        img_file = st.file_uploader("Upload Image", type=['png', 'jpg', 'jpeg'])
+        st.divider()
+        st.write("History (30-day limit)")
+        logs = st.session_state.db["history"].get(st.session_state.user, [])
+        for i, log in enumerate(logs):
+            if st.button(f" {log.get('name', 'Chat')}", key=f"h_{i}"):
+                st.session_state.messages = log.get("msgs", [])
+                st.session_state.active_idx = i
+                st.rerun()
+
+# --- 5. LOGIN LOGIC ---
 if "user" not in st.session_state:
     st.markdown("<h1 class='main-title'>Gobidas</h1>", unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1, 1.5, 1])
@@ -100,7 +133,10 @@ if "user" not in st.session_state:
         mode = st.radio(" ", ["Log In", "Sign Up"], horizontal=True)
         u = st.text_input("Name")
         p = st.text_input("Password", type="password")
-        if st.button("Enter"):
+        st.markdown("<p style='text-align: center; font-size: 0.8rem; color: #bbb;'>By making an account or using our AI you are accepting our terms and privacy</p>", unsafe_allow_html=True)
+        agree = st.checkbox("I agree to the Terms and Privacy Policy")
+        
+        if st.button("Enter", disabled=not agree):
             if mode == "Log In":
                 if u in st.session_state.db["users"] and st.session_state.db["users"][u] == p:
                     st.session_state.user = u
@@ -112,32 +148,12 @@ if "user" not in st.session_state:
                     st.session_state.db["history"][u] = []
                     save_db(st.session_state.db)
                     st.success("Account created! Please Log In.")
+        with st.expander("See our terms and privacy"):
+            show_legal_content()
     st.stop()
 
-# --- 4. CORE ENGINE ---
+# --- 6. CHAT INTERFACE ---
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-
-with st.sidebar:
-    st.markdown(f"### Welcome, {st.session_state.user}")
-    if st.button("New Chat"):
-        st.session_state.messages = []
-        st.session_state.active_idx = None
-        st.rerun()
-    
-    st.divider()
-    img_file = st.file_uploader("Upload Image", type=['png', 'jpg', 'jpeg'])
-    
-    st.divider()
-    st.write("History")
-    logs = st.session_state.db["history"].get(st.session_state.user, [])
-    for i, log in enumerate(logs):
-        name = log.get("name", f"Chat {i+1}")
-        if st.button(f" {name}", key=f"h_{i}"):
-            st.session_state.messages = log.get("msgs", [])
-            st.session_state.active_idx = i
-            st.rerun()
-
-# --- 5. CHAT ---
 st.markdown("<h1 class='main-title'>Gobidas</h1>", unsafe_allow_html=True)
 
 for msg in st.session_state.messages:
@@ -147,30 +163,31 @@ if prompt := st.chat_input("Ask Gobidas..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
-        if img_file: st.image(img_file, width=300)
+        # Check if img_file exists in the sidebar context
+        try:
+            if img_file: st.image(img_file, width=300)
+        except: pass
 
     with st.chat_message("assistant"):
         try:
-            if img_file:
+            # Check for image processing
+            try:
+                has_image = img_file is not None
+            except:
+                has_image = False
+
+            if has_image:
                 img = Image.open(img_file).convert("RGB")
                 img.thumbnail((800, 800))
                 buf = io.BytesIO()
                 img.save(buf, format="JPEG")
                 b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
-                
-                # Using Llama 4 Scout (Non-3.2 Vision Model)
                 res = client.chat.completions.create(
                     model="meta-llama/llama-4-scout-17b-16e-instruct",
-                    messages=[{"role": "user", "content": [
-                        {"type": "text", "text": prompt},
-                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
-                    ]}]
+                    messages=[{"role": "user", "content": [{"type": "text", "text": prompt}, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}]}]
                 )
             else:
-                res = client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
-                    messages=st.session_state.messages
-                )
+                res = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=st.session_state.messages)
             
             ans = res.choices[0].message.content
             st.markdown(ans)
@@ -178,15 +195,13 @@ if prompt := st.chat_input("Ask Gobidas..."):
             
             # Save History
             hist = st.session_state.db["history"].get(st.session_state.user, [])
+            chat_data = {"name": prompt[:30], "msgs": st.session_state.messages, "timestamp": time.time()}
             if st.session_state.get("active_idx") is None:
-                summary = (prompt[:30] + '...') if len(prompt) > 30 else prompt
-                hist.append({"name": summary, "msgs": st.session_state.messages})
+                hist.append(chat_data)
                 st.session_state.db["history"][st.session_state.user] = hist
                 st.session_state.active_idx = len(hist) - 1
             else:
-                idx = st.session_state.active_idx
-                st.session_state.db["history"][st.session_state.user][idx]["msgs"] = st.session_state.messages
+                st.session_state.db["history"][st.session_state.user][st.session_state.active_idx] = chat_data
             save_db(st.session_state.db)
-            
         except Exception as e:
             st.error(f"Error: {e}")
