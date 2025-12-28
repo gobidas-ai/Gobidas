@@ -3,7 +3,7 @@ from groq import Groq
 import json, os, base64, io, time
 from PIL import Image
 
-# --- 1. UI & TOTAL STEALTH STYLE ---
+# --- 1. UI & STEALTH HEADER STYLE ---
 st.set_page_config(page_title="Gobidas Beta", layout="wide", initial_sidebar_state="expanded")
 
 def get_base64(file):
@@ -15,26 +15,27 @@ bin_str = get_base64('background.jpg')
 
 st.markdown(f"""
 <style>
-    /* HIDE WATERMARK, PROFILE, AND HEADER COMPLETELY */
-    #MainMenu, footer, [data-testid="stStatusWidget"], .stDeployButton, [data-testid="stToolbar"] {{
-        visibility: hidden !important; display: none !important;
+    /* 1. RESTORE HEADER BUT HIDE GITHUB ICON ONLY */
+    header[data-testid="stHeader"] {{
+        visibility: visible !important;
+        background: rgba(0,0,0,0.5) !important;
     }}
     
-    /* THE ULTIMATE SIDEBAR RECOVERY BUTTON */
-    /* This forces the 'collapsed control' to stay visible and look like a pro toggle */
-    [data-testid="collapsedControl"] {{
-        visibility: visible !important;
-        display: flex !important;
-        position: fixed !important;
-        top: 15px !important;
-        left: 15px !important;
-        z-index: 999999;
-        background-color: #FF6D00 !important;
-        border-radius: 8px !important;
-        padding: 5px !important;
-        box-shadow: 0px 0px 15px rgba(255, 109, 0, 0.5);
+    /* Target the specific GitHub icon button in the header */
+    .stApp a[href*="github.com"], 
+    .stApp [data-testid="stHeader"] svg[viewBox*="github"],
+    [data-testid="stHeaderActionElements"] button:has(svg[viewBox*="0 0 16 16"]) {{
+        display: none !important;
+        visibility: hidden !important;
     }}
 
+    /* 2. HIDE STREAMLIT WATERMARK & PROFILE ICON (Bottom Right) */
+    footer, [data-testid="stStatusWidget"], [data-testid="stManageAppButton"] {{
+        visibility: hidden !important;
+        display: none !important;
+    }}
+
+    /* 3. APP BACKGROUND & SIDEBAR */
     .stApp {{
         background: linear-gradient(rgba(0,0,0,0.65), rgba(0,0,0,0.85)), 
                     url("data:image/jpeg;base64,{bin_str}");
@@ -54,7 +55,6 @@ st.markdown(f"""
     .stButton>button {{
         width: 100%; border-radius: 12px; background: transparent !important;
         color: white !important; border: 2px solid #FF6D00 !important;
-        font-weight: 600;
     }}
 
     .legal-box {{
@@ -64,7 +64,7 @@ st.markdown(f"""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. STORAGE ---
+# --- 2. STORAGE SYSTEM ---
 DB_FILE = "gobidas_db.json"
 def load_db():
     if os.path.exists(DB_FILE):
@@ -79,13 +79,12 @@ def save_db(data):
 if "db" not in st.session_state:
     st.session_state.db = load_db()
 
-# --- 3. SIDEBAR ---
+# --- 3. SIDEBAR NAVIGATION ---
 with st.sidebar:
-    st.markdown("<br><br>", unsafe_allow_html=True) # Space for the toggle button
     st.markdown("### Gobidas Controls")
     if "user" in st.session_state:
         st.markdown(f"👤 **User:** {st.session_state.user}")
-        if st.button("➕ Start New Chat"):
+        if st.button("➕ New Chat"):
             st.session_state.messages = []
             st.session_state.active_idx = None
             st.rerun()
@@ -102,12 +101,11 @@ with st.sidebar:
                 st.session_state.active_idx = len(logs) - 1 - i
                 st.rerun()
         
-        st.divider()
         if st.button("🚪 Logout"):
             del st.session_state.user
             st.rerun()
 
-# --- 4. LOGIN & TERMS ---
+# --- 4. LOGIN & TERMS SCREEN ---
 if "user" not in st.session_state:
     st.markdown("<h1 class='main-title'>Gobidas</h1>", unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1, 1.5, 1])
@@ -115,10 +113,8 @@ if "user" not in st.session_state:
         mode = st.radio(" ", ["Log In", "Sign Up"], horizontal=True)
         u = st.text_input("Username")
         p = st.text_input("Password", type="password")
-        
-        st.markdown("#### Privacy & Security Terms")
-        st.markdown("<div class='legal-box'>By entering Gobidas AI, you agree that your login and chat data are stored for session context. Chats are auto-deleted every 30 days. AI responses should be verified for accuracy.</div>", unsafe_allow_html=True)
-        agree = st.checkbox("I accept the Terms and Privacy Policy")
+        st.markdown("<div class='legal-box'>Data stored for 30 days. No illegal prompts.</div>", unsafe_allow_html=True)
+        agree = st.checkbox("I agree to the Terms")
         
         if st.button("Access System", disabled=not agree):
             if mode == "Log In":
@@ -126,27 +122,25 @@ if "user" not in st.session_state:
                     st.session_state.user = u
                     st.session_state.messages = []
                     st.rerun()
-                else: st.error("Invalid Username or Password.")
+                else: st.error("Access Denied.")
             else:
                 if u and p:
                     st.session_state.db["users"][u] = p
                     st.session_state.db["history"][u] = []
                     save_db(st.session_state.db)
-                    st.success("Account Ready! Please Log In.")
+                    st.success("Account Created! Now Log In.")
     st.stop()
 
-# --- 5. CHAT AREA ---
+# --- 5. CHAT ENGINE (Llama 3.2 90B Vision) ---
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 st.markdown("<h1 class='main-title'>Gobidas AI</h1>", unsafe_allow_html=True)
 
-# Display Current Messages
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
         if "image" in msg: st.image(msg["image"], width=400)
 
-# Input Logic
-if prompt := st.chat_input("Message Gobidas..."):
+if prompt := st.chat_input("Ask Gobidas..."):
     msg_entry = {"role": "user", "content": prompt}
     if img_file: msg_entry["image"] = img_file.getvalue()
     st.session_state.messages.append(msg_entry)
@@ -158,7 +152,6 @@ if prompt := st.chat_input("Message Gobidas..."):
     with st.chat_message("assistant"):
         try:
             if img_file:
-                # Use current working Vision Model
                 img = Image.open(img_file).convert("RGB")
                 img.thumbnail((800, 800))
                 buf = io.BytesIO()
@@ -182,7 +175,6 @@ if prompt := st.chat_input("Message Gobidas..."):
             st.markdown(ans)
             st.session_state.messages.append({"role": "assistant", "content": ans})
             
-            # Persist History
             hist = st.session_state.db["history"].get(st.session_state.user, [])
             chat_summary = {"name": prompt[:25], "msgs": st.session_state.messages, "timestamp": time.time()}
             
@@ -194,4 +186,4 @@ if prompt := st.chat_input("Message Gobidas..."):
                 st.session_state.db["history"][st.session_state.user][st.session_state.active_idx] = chat_summary
             save_db(st.session_state.db)
         except Exception as e:
-            st.error(f"System Error: {e}")
+            st.error(f"Error: {e}")
