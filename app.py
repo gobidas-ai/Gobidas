@@ -71,7 +71,7 @@ st.markdown(f"""
 
 # --- 2. CONTENT ---
 WELCOME_TEXT = """
-<h3 style="color:#FF6D00; margin-top:0;">WELCOME</h3>
+<h3 style="color:#FF6D00; margin-top:0;">WELCOME TO GOBIDAS</h3>
 Thank you for using Gobidas. <br><br>
 Currently our AI is in beta and you might experience loss of data (losing your user). <br><br>
 Thank you for trying it out! we are ready for you to use it again!
@@ -133,17 +133,17 @@ if st.session_state.user is None:
     _, col, _ = st.columns([1, 2, 1])
     with col:
         mode = st.radio("Choice", ["Log In", "Sign Up"], horizontal=True, label_visibility="collapsed")
-        u = st.text_input("Username", placeholder="Type your username")
-        p = st.text_input("Password", type="password", placeholder="Type your password")
+        u = st.text_input("Type your Username", placeholder="Username")
+        p = st.text_input("Type your Password", type="password", placeholder="Password")
         
         # TWO BOXES: Welcome and Legal
         st.markdown(f'<div class="info-box">{WELCOME_TEXT}</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="info-box">{LONG_LEGAL}</div>', unsafe_allow_html=True)
         
         remember = st.checkbox("Keep me logged in")
-        agree = st.checkbox("I have read and agreed to the Terms and Privacy")
+        agree = st.checkbox("I have read and agree to all of the above")
         
-        btn_text = "CONTINUE" if mode == "Log In" else "Sign up"
+        btn_text = "CONTINUE" if mode == "Log In" else "SIGN UP"
         if st.button(btn_text, disabled=not agree):
             db = st.session_state.db
             if mode == "Log In":
@@ -169,7 +169,7 @@ with st.sidebar:
     st.markdown(f"### Logged in: **{st.session_state.user}**")
     img_file = st.file_uploader("📎 ATTACH IMAGE", type=['png', 'jpg', 'jpeg'])
     
-    if st.button("New Chat"):
+    if st.button("Start New Chat"):
         st.session_state.messages = []
         st.session_state.active_idx = None
         st.rerun()
@@ -185,10 +185,10 @@ with st.sidebar:
 
     st.divider()
     with st.expander("Settings"):
-        if st.button("Creator info"): st.session_state.creator_info_active = True; st.rerun()
-        if st.button("Jeffrey Edit"): st.session_state.nice_man_active = True; st.rerun()
-        if st.button("TERMS AND PRIVACY): st.session_state.legal_overlay_active = True; st.rerun()
-        if st.button("Log out"):
+        if st.button("CREATOR INFO"): st.session_state.creator_info_active = True; st.rerun()
+        if st.button("VERY NICE MAN"): st.session_state.nice_man_active = True; st.rerun()
+        if st.button("TERMS AND PRIVACY"): st.session_state.legal_overlay_active = True; st.rerun()
+        if st.button("LOG OUT"):
             st.session_state.db["current_session"] = None
             save_db(st.session_state.db)
             st.session_state.user = None
