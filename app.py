@@ -187,7 +187,7 @@ with st.sidebar:
     with st.expander("Settings"):
         if st.button("Creator info"): st.session_state.creator_info_active = True; st.rerun()
         if st.button("Jeffrey Edit"): st.session_state.nice_man_active = True; st.rerun()
-        if st.button("Terms and Privacy): st.session_state.legal_overlay_active = True; st.rerun()
+        if st.button("TERMS AND PRIVACY): st.session_state.legal_overlay_active = True; st.rerun()
         if st.button("Log out"):
             st.session_state.db["current_session"] = None
             save_db(st.session_state.db)
