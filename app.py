@@ -12,14 +12,12 @@ def get_base64(file):
             return base64.b64encode(f.read()).decode()
     except: return ""
 
-# --- 2. INITIALIZE SESSION STATES (SAFETY FIRST) ---
-# This prevents the AttributeError you saw
+# Initialize Session States (Safety Check)
 if "user" not in st.session_state: st.session_state.user = None
 if "creator_info_active" not in st.session_state: st.session_state.creator_info_active = False
 if "nice_man_active" not in st.session_state: st.session_state.nice_man_active = False
 if "legal_overlay_active" not in st.session_state: st.session_state.legal_overlay_active = False
 if "messages" not in st.session_state: st.session_state.messages = []
-if "show_welcome" not in st.session_state: st.session_state.show_welcome = True
 
 bin_str = get_base64('background.jpg')
 sec_img_base64 = get_base64('secret_image.png')
@@ -58,21 +56,37 @@ st.markdown(f"""
     .stButton>button:hover {{
         background: #FF6D00 !important; color: black !important;
     }}
-    .legal-box {{
-        height: 400px; overflow-y: scroll; background: rgba(10,10,10,0.9); 
-        padding: 30px; border: 1px solid #FF6D00; color: #ccc; border-radius: 10px;
-        margin-bottom: 20px; font-size: 0.85rem; line-height: 2;
+    .info-box {{
+        height: 250px; overflow-y: scroll; background: rgba(10,10,10,0.9); 
+        padding: 25px; border: 1px solid #FF6D00; color: #ccc; border-radius: 10px;
+        margin-bottom: 15px; font-size: 0.85rem; line-height: 1.8;
     }}
     .overlay-container {{
         position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
         background-color: black; z-index: 999999;
         display: flex; flex-direction: column; align-items: center; justify-content: center;
-        text-align: center; color: white; padding: 50px;
     }}
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. DATABASE ---
+# --- 2. CONTENT ---
+WELCOME_TEXT = """
+<h3 style="color:#FF6D00; margin-top:0;">WELCOME TO GOBIDAS</h3>
+Thank you for using Gobidas. <br><br>
+Currently our AI is in beta and you might experience loss of data (losing your user). <br><br>
+Thank you for trying it out! we are ready for you to use it again!
+"""
+
+LONG_LEGAL = """
+<h3 style="color:#FF6D00; margin-top:0;">TERMS & PRIVACY</h3>
+<b>1. RULES:</b> Use at your own risk. This is a beta test. Data loss is possible.<br>
+<b>2. PRIVACY:</b> We don't track you. Everything is in a local JSON file.<br>
+<b>3. AI:</b> Powered by Groq/Llama. Not responsible for AI responses.<br>
+<b>4. SECURITY:</b> Keep your password safe. We don't store plain text.<br>
+<b>5. ATTACHMENTS:</b> Images are processed but not stored forever.
+"""
+
+# --- 3. DATABASE & AUTH ---
 DB_FILE = "gobidas_db.json"
 def load_db():
     if os.path.exists(DB_FILE):
@@ -87,7 +101,7 @@ def save_db(data):
 if "db" not in st.session_state:
     st.session_state.db = load_db()
 
-# Auto-Login Check
+# Auto-Login
 if st.session_state.user is None:
     saved = st.session_state.db.get("current_session")
     if saved:
@@ -95,31 +109,7 @@ if st.session_state.user is None:
         hist_list = st.session_state.db.get("history", {}).get(saved, [])
         if hist_list: st.session_state.messages = hist_list[-1].get("msgs", [])
 
-# --- 4. LEGAL TEXT ---
-LONG_LEGAL = """
-<b>GOBIDAS BETA - OFFICIAL TERMS & PRIVACY PROTOCOL</b><br><br>
-<b>1. RULES:</b> Use at your own risk. This is a beta test. Data loss is possible.<br>
-<b>2. PRIVACY:</b> We don't track you. Everything is in a local JSON file.<br>
-<b>3. AI:</b> Powered by Groq/Llama. Not responsible for AI responses.<br>
-<b>4. SECURITY:</b> Keep your password safe. We don't store plain text.<br>
-<b>5. ATTACHMENTS:</b> Images are processed but not stored forever.
-"""
-
-# --- 5. OVERLAYS (WELCOME, SECRETS, LEGAL) ---
-if st.session_state.user and st.session_state.show_welcome:
-    st.markdown(f"""
-    <div class="overlay-container">
-        <h1 style="color:#FF6D00;">WELCOME BACK</h1>
-        <p style="font-size:1.5rem;">Thank you for using Gobidas. <br>
-        Currently our AI is in beta and you might experience loss of data (losing your user). <br>
-        Thank you for trying it out! we are ready for you to use it again!</p>
-    </div>
-    """, unsafe_allow_html=True)
-    if st.button("CONTINUE TO CHAT"):
-        st.session_state.show_welcome = False
-        st.rerun()
-    st.stop()
-
+# Overlays (Secrets)
 def render_exit(key):
     if st.button("GO BACK"):
         st.session_state[key] = False
@@ -134,10 +124,10 @@ if st.session_state.nice_man_active:
     render_exit("nice_man_active"); st.stop()
 
 if st.session_state.legal_overlay_active:
-    st.markdown(f'<div class="overlay-container"><div class="legal-box" style="width:75%">{LONG_LEGAL}</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="overlay-container"><div class="info-box" style="width:75%; height:500px;">{LONG_LEGAL}</div></div>', unsafe_allow_html=True)
     render_exit("legal_overlay_active"); st.stop()
 
-# --- 6. LOGIN / SIGN UP ---
+# --- 4. LOGIN / SIGN UP SCREEN ---
 if st.session_state.user is None:
     st.markdown("<h1 class='main-title'>Gobidas</h1>", unsafe_allow_html=True)
     _, col, _ = st.columns([1, 2, 1])
@@ -145,9 +135,13 @@ if st.session_state.user is None:
         mode = st.radio("Choice", ["Log In", "Sign Up"], horizontal=True, label_visibility="collapsed")
         u = st.text_input("Type your Username", placeholder="Username")
         p = st.text_input("Type your Password", type="password", placeholder="Password")
-        st.markdown(f'<div class="legal-box">{LONG_LEGAL}</div>', unsafe_allow_html=True)
+        
+        # TWO BOXES: Welcome and Legal
+        st.markdown(f'<div class="info-box">{WELCOME_TEXT}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="info-box">{LONG_LEGAL}</div>', unsafe_allow_html=True)
+        
         remember = st.checkbox("Keep me logged in")
-        agree = st.checkbox("I have read and agree to the Terms and Privacy")
+        agree = st.checkbox("I have read and agree to all of the above")
         
         btn_text = "CONTINUE" if mode == "Log In" else "SIGN UP"
         if st.button(btn_text, disabled=not agree):
@@ -155,7 +149,6 @@ if st.session_state.user is None:
             if mode == "Log In":
                 if u in db["users"] and db["users"][u] == p:
                     st.session_state.user = u
-                    st.session_state.show_welcome = True
                     if remember:
                         db["current_session"] = u
                         save_db(db)
@@ -169,7 +162,7 @@ if st.session_state.user is None:
                     st.success("Account created! Now Log In.")
     st.stop()
 
-# --- 7. SIDEBAR ---
+# --- 5. SIDEBAR & CHAT ---
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 with st.sidebar:
@@ -201,7 +194,6 @@ with st.sidebar:
             st.session_state.user = None
             st.rerun()
 
-# --- 8. MAIN CHAT ---
 st.markdown("<h1 class='main-title'>Gobidas</h1>", unsafe_allow_html=True)
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]): st.markdown(msg["content"])
@@ -229,12 +221,11 @@ if prompt := st.chat_input("Type a message..."):
                     model="meta-llama/llama-4-maverick-17b-128e-instruct",
                     messages=[{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
                 )
-            
             ans = res.choices[0].message.content
             st.markdown(ans)
             st.session_state.messages.append({"role": "assistant", "content": ans})
             
-            # Save logic
+            # History Save
             hist = st.session_state.db["history"].get(st.session_state.user, [])
             chat_save = {"name": prompt[:20], "msgs": st.session_state.messages}
             if st.session_state.get("active_idx") is None:
@@ -245,4 +236,4 @@ if prompt := st.chat_input("Type a message..."):
             st.session_state.db["history"][st.session_state.user] = hist
             save_db(st.session_state.db)
         except Exception as e:
-            st.error(f"Inference Failure: {e}")
+            st.error(f"Error: {e}")
