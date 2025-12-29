@@ -3,7 +3,7 @@ from groq import Groq
 import json, os, base64, io, time
 from PIL import Image
 
-# --- 1. UI & TOTAL STEALTH STYLE ---
+# --- 1. UI & STYLE ---
 st.set_page_config(page_title="Gobidas Beta", layout="wide")
 
 def get_base64(file):
@@ -12,17 +12,11 @@ def get_base64(file):
             return base64.b64encode(f.read()).decode()
     except: return ""
 
-# Initialize Session States correctly to prevent refresh errors
-if "creator_info_active" not in st.session_state:
-    st.session_state.creator_info_active = False
-if "nice_man_active" not in st.session_state:
-    st.session_state.nice_man_active = False
-if "legal_overlay_active" not in st.session_state:
-    st.session_state.legal_overlay_active = False
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-if "active_idx" not in st.session_state:
-    st.session_state.active_idx = None
+# Initialize Session States
+if "creator_info_active" not in st.session_state: st.session_state.creator_info_active = False
+if "nice_man_active" not in st.session_state: st.session_state.nice_man_active = False
+if "legal_overlay_active" not in st.session_state: st.session_state.legal_overlay_active = False
+if "messages" not in st.session_state: st.session_state.messages = []
 
 bin_str = get_base64('background.jpg')
 sec_img_base64 = get_base64('secret_image.png')
@@ -42,13 +36,13 @@ st.markdown(f"""
         visibility: hidden !important; display: none !important;
     }}
     .stApp {{
-        background: linear-gradient(rgba(0,0,0,0.8), rgba(0,0,0,0.95)), 
+        background: linear-gradient(rgba(0,0,0,0.85), rgba(0,0,0,0.95)), 
                     url("data:image/jpeg;base64,{bin_str}");
         background-size: cover; background-position: center; background-attachment: fixed;
     }}
     [data-testid="stSidebar"] {{
         background: rgba(0, 0, 0, 0.95) !important;
-        backdrop-filter: blur(25px); border-right: 2px solid #FF6D00;
+        border-right: 2px solid #FF6D00;
     }}
     .main-title {{
         font-weight: 900; color: #FF6D00; text-align: center; font-size: 5.5rem;
@@ -57,28 +51,46 @@ st.markdown(f"""
     .stButton>button {{
         width: 100%; border-radius: 12px; background: transparent !important;
         color: white !important; border: 2px solid #FF6D00 !important;
-        font-weight: 600; transition: 0.3s all ease; height: 3em;
+        font-weight: 600; height: 3.5em;
     }}
-    .stButton>button:hover:not(:disabled) {{
-        background: #FF6D00 !important; box-shadow: 0px 0px 30px rgba(255, 109, 0, 0.9);
-        color: black !important;
+    .stButton>button:hover {{
+        background: #FF6D00 !important; color: black !important;
     }}
-    .legal-scroll-box {{
-        height: 250px; overflow-y: scroll; background: rgba(0,0,0,0.7); 
-        padding: 20px; border: 1px solid #FF6D00; color: #ddd; border-radius: 10px;
-        margin-bottom: 20px; font-size: 0.85rem; line-height: 1.6;
+    .legal-box {{
+        height: 400px; overflow-y: scroll; background: rgba(20,20,20,0.8); 
+        padding: 25px; border: 1px solid #FF6D00; color: #bbb; border-radius: 10px;
+        margin-bottom: 20px; font-size: 0.8rem; line-height: 1.8;
     }}
     .overlay-container {{
         position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
         background-color: black; z-index: 999999;
         display: flex; flex-direction: column; align-items: center; justify-content: center;
     }}
-    .overlay-content {{ max-width: 90%; max-height: 80%; object-fit: contain; }}
-    .exit-btn-wrap {{ position: fixed; bottom: 40px; z-index: 1000000; width: 250px; }}
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. DATABASE & LOGIC ---
+# --- 2. THE LONG TERMS & PRIVACY ---
+LONG_LEGAL = """
+<b>GOBIDAS BETA - COMPREHENSIVE TERMS OF SERVICE & PRIVACY POLICY</b><br><br>
+<b>1. ACCEPTANCE OF TERMS</b><br>
+By accessing the Gobidas Neural Interface, you agree to be bound by these Terms of Service. If you do not agree, disconnect immediately. This is an experimental platform provided "as is" without any warranties of any kind.<br><br>
+<b>2. USER CONDUCT</b><br>
+Users are prohibited from using Gobidas for any illegal activities. You are responsible for all commands issued under your identification. Do not share your Secret Key with anyone.<br><br>
+<b>3. PRIVACY & DATA STORAGE</b><br>
+Gobidas operates on a "Zero-Knowledge" principle. We do not track your location, your hardware ID, or your personal identity. All chat logs are stored in a local JSON file on the host server. Deleting a chat history entry removes it from the database permanently. We do not sell data to third parties.<br><br>
+<b>4. NEURAL ENGINES</b><br>
+This application uses Groq's high-speed inference technology and Meta's Llama 4 models. Use of these models is subject to Meta's Open-Source AI License. Gobidas is a custom wrapper designed for speed and stealth.<br><br>
+<b>5. INTELLECTUAL PROPERTY</b><br>
+The Gobidas UI, custom CSS animations, and database architecture are proprietary. Unauthorized cloning of the Gobidas source code is prohibited.<br><br>
+<b>6. LIMITATION OF LIABILITY</b><br>
+In no event shall the creators of Gobidas be liable for any direct, indirect, incidental, or consequential damages arising out of the use or inability to use this service. The AI may generate inaccurate or biased information.<br><br>
+<b>7. AMENDMENTS</b><br>
+We reserve the right to modify these terms at any time. Your continued use of the system constitutes acceptance of new terms.<br><br>
+<b>8. COOKIES & PERSISTENCE</b><br>
+If you select "Remember Me", your identification is stored in a session variable to prevent the need for re-authentication on every refresh. Log out to clear this data.
+"""
+
+# --- 3. DATABASE & AUTH ---
 DB_FILE = "gobidas_db.json"
 def load_db():
     if os.path.exists(DB_FILE):
@@ -93,49 +105,46 @@ def save_db(data):
 if "db" not in st.session_state:
     st.session_state.db = load_db()
 
-# Auto-Login Logic (Fixing the Refresh Bug)
+# Persistent Login Check
 if "user" not in st.session_state:
-    saved_user = st.session_state.db.get("current_session")
-    if saved_user:
-        st.session_state.user = saved_user
-        # Pre-load the last chat history if it exists
-        user_history = st.session_state.db.get("history", {}).get(saved_user, [])
-        if user_history:
-            st.session_state.messages = user_history[-1].get("msgs", [])
-            st.session_state.active_idx = len(user_history) - 1
+    saved = st.session_state.db.get("current_session")
+    if saved:
+        st.session_state.user = saved
+        user_hist = st.session_state.db.get("history", {}).get(saved, [])
+        if user_hist: st.session_state.messages = user_hist[-1].get("msgs", [])
 
-# --- 3. OVERLAYS ---
-LEGAL_TEXT = "<b>GOBIDAS PROTOCOL</b><br>Data is local. Privacy is absolute. AI is experimental."
-
-def render_exit_button(state_key):
-    _, col, _ = st.columns([1, 0.6, 1])
-    with col:
-        if st.button("RETURN TO COMMAND", key=f"exit_{state_key}"):
-            st.session_state[state_key] = False
-            st.rerun()
+# Overlays
+def render_exit(key):
+    if st.button("GO BACK"):
+        st.session_state[key] = False
+        st.rerun()
 
 if st.session_state.creator_info_active:
-    st.markdown(f'<div class="overlay-container"><img src="data:image/png;base64,{sec_img_base64}" class="overlay-content"></div>', unsafe_allow_html=True)
-    render_exit_button("creator_info_active"); st.stop()
+    st.markdown(f'<div class="overlay-container"><img src="data:image/png;base64,{sec_img_base64}" style="max-height:80%"></div>', unsafe_allow_html=True)
+    render_exit("creator_info_active"); st.stop()
 
 if st.session_state.nice_man_active:
-    st.markdown(f'<div class="overlay-container"><video class="overlay-content" autoplay loop><source src="data:video/mp4;base64,{video_base64}" type="video/mp4"></video></div>', unsafe_allow_html=True)
-    render_exit_button("nice_man_active"); st.stop()
+    st.markdown(f'<div class="overlay-container"><video style="max-height:80%" autoplay loop><source src="data:video/mp4;base64,{video_base64}" type="video/mp4"></video></div>', unsafe_allow_html=True)
+    render_exit("nice_man_active"); st.stop()
 
 if st.session_state.legal_overlay_active:
-    st.markdown(f'<div class="overlay-container"><div class="legal-scroll-box" style="width:70%">{LEGAL_TEXT}</div></div>', unsafe_allow_html=True)
-    render_exit_button("legal_overlay_active"); st.stop()
+    st.markdown(f'<div class="overlay-container"><div class="legal-box" style="width:70%">{LONG_LEGAL}</div></div>', unsafe_allow_html=True)
+    render_exit("legal_overlay_active"); st.stop()
 
-# --- 4. AUTH SCREEN ---
+# Login Screen
 if "user" not in st.session_state:
     st.markdown("<h1 class='main-title'>Gobidas</h1>", unsafe_allow_html=True)
-    _, col, _ = st.columns([1, 1.8, 1])
+    _, col, _ = st.columns([1, 2, 1])
     with col:
-        mode = st.radio("Access", ["Log In", "Sign Up"], horizontal=True)
-        u = st.text_input("User", placeholder="Identify...")
-        p = st.text_input("Key", type="password", placeholder="Secret Key...")
+        mode = st.radio("Choose", ["Log In", "Sign Up"], horizontal=True, label_visibility="collapsed")
+        u = st.text_input("Type your Username", placeholder="Username")
+        p = st.text_input("Type your Password", type="password", placeholder="Password")
+        st.markdown(f'<div class="legal-box">{LONG_LEGAL}</div>', unsafe_allow_html=True)
         remember = st.checkbox("Keep me logged in")
-        if st.button("INITIALIZE"):
+        agree = st.checkbox("I have read and agree to the Terms and Privacy")
+        
+        btn_text = "CONTINUE" if mode == "Log In" else "SIGN UP"
+        if st.button(btn_text, disabled=not agree):
             db = st.session_state.db
             if mode == "Log In":
                 if u in db["users"] and db["users"][u] == p:
@@ -144,46 +153,41 @@ if "user" not in st.session_state:
                         db["current_session"] = u
                         save_db(db)
                     st.rerun()
-                else: st.error("Access Denied.")
+                else: st.error("Incorrect details.")
             else:
                 if u and p:
                     db["users"][u] = p
                     db["history"][u] = []
                     save_db(db)
-                    st.success("Authorized.")
+                    st.success("Account created! Now Log In.")
     st.stop()
 
-# --- 5. MAIN CHAT ---
+# --- 4. MAIN CHAT ---
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 with st.sidebar:
-    st.markdown(f"### Access: **{st.session_state.user}**")
-    if st.button("New Command"):
+    st.markdown(f"### Logged in as: **{st.session_state.user}**")
+    if st.button("Start New Chat"):
         st.session_state.messages = []
-        st.session_state.active_idx = None
         st.rerun()
     st.divider()
-    with st.expander("⚙️ System Config"):
+    with st.expander("Settings"):
         if st.button("CREATOR INFO"): st.session_state.creator_info_active = True; st.rerun()
         if st.button("VERY NICE MAN"): st.session_state.nice_man_active = True; st.rerun()
+        if st.button("TERMS AND PRIVACY"): st.session_state.legal_overlay_active = True; st.rerun()
         if st.button("LOG OUT"):
             st.session_state.db["current_session"] = None
             save_db(st.session_state.db)
             del st.session_state.user
             st.rerun()
-    img_file = st.file_uploader("Visual Scan", type=['png', 'jpg', 'jpeg'])
 
 st.markdown("<h1 class='main-title'>Gobidas</h1>", unsafe_allow_html=True)
-
-# Render history safely
 for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
+    with st.chat_message(msg["role"]): st.markdown(msg["content"])
 
-if prompt := st.chat_input("Command Gobidas..."):
+if prompt := st.chat_input("Type a message..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
+    with st.chat_message("user"): st.markdown(prompt)
 
     with st.chat_message("assistant"):
         try:
@@ -195,15 +199,10 @@ if prompt := st.chat_input("Command Gobidas..."):
             st.markdown(ans)
             st.session_state.messages.append({"role": "assistant", "content": ans})
             
-            # Auto-save history
+            # Save history
             hist = st.session_state.db["history"].get(st.session_state.user, [])
-            chat_data = {"name": prompt[:20], "msgs": st.session_state.messages, "timestamp": time.time()}
-            if st.session_state.active_idx is None:
-                hist.append(chat_data)
-                st.session_state.active_idx = len(hist) - 1
-            else:
-                hist[st.session_state.active_idx] = chat_data
+            hist.append({"name": prompt[:20], "msgs": st.session_state.messages})
             st.session_state.db["history"][st.session_state.user] = hist
             save_db(st.session_state.db)
         except Exception as e:
-            st.error(f"Inference Failure: {e}")
+            st.error(f"Error: {e}")
