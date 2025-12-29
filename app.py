@@ -12,15 +12,15 @@ def get_base64(file):
             return base64.b64encode(f.read()).decode()
     except: return ""
 
-# Initialize Session States
+# Session States
 if "creator_info_active" not in st.session_state: st.session_state.creator_info_active = False
 if "nice_man_active" not in st.session_state: st.session_state.nice_man_active = False
 if "legal_overlay_active" not in st.session_state: st.session_state.legal_overlay_active = False
 if "messages" not in st.session_state: st.session_state.messages = []
+if "show_welcome" not in st.session_state: st.session_state.show_welcome = True
 
 bin_str = get_base64('background.jpg')
 sec_img_base64 = get_base64('secret_image.png')
-sec_audio_base64 = get_base64('secret_music.mp3')
 
 try:
     with open("ssstik.io_@hicc319_1766964298508.mp4", "rb") as v_file:
@@ -57,37 +57,36 @@ st.markdown(f"""
         background: #FF6D00 !important; color: black !important;
     }}
     .legal-box {{
-        height: 400px; overflow-y: scroll; background: rgba(20,20,20,0.8); 
-        padding: 25px; border: 1px solid #FF6D00; color: #bbb; border-radius: 10px;
-        margin-bottom: 20px; font-size: 0.8rem; line-height: 1.8;
+        height: 450px; overflow-y: scroll; background: rgba(10,10,10,0.9); 
+        padding: 30px; border: 1px solid #FF6D00; color: #ccc; border-radius: 10px;
+        margin-bottom: 20px; font-size: 0.85rem; line-height: 2;
     }}
     .overlay-container {{
         position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
         background-color: black; z-index: 999999;
         display: flex; flex-direction: column; align-items: center; justify-content: center;
+        text-align: center; color: white; padding: 50px;
     }}
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. THE LONG TERMS & PRIVACY ---
+# --- 2. THE EXTRA LONG TERMS & PRIVACY ---
 LONG_LEGAL = """
-<b>GOBIDAS BETA - COMPREHENSIVE TERMS OF SERVICE & PRIVACY POLICY</b><br><br>
-<b>1. ACCEPTANCE OF TERMS</b><br>
-By accessing the Gobidas Neural Interface, you agree to be bound by these Terms of Service. If you do not agree, disconnect immediately. This is an experimental platform provided "as is" without any warranties of any kind.<br><br>
-<b>2. USER CONDUCT</b><br>
-Users are prohibited from using Gobidas for any illegal activities. You are responsible for all commands issued under your identification. Do not share your Secret Key with anyone.<br><br>
-<b>3. PRIVACY & DATA STORAGE</b><br>
-Gobidas operates on a "Zero-Knowledge" principle. We do not track your location, your hardware ID, or your personal identity. All chat logs are stored in a local JSON file on the host server. Deleting a chat history entry removes it from the database permanently. We do not sell data to third parties.<br><br>
-<b>4. NEURAL ENGINES</b><br>
-This application uses Groq's high-speed inference technology and Meta's Llama 4 models. Use of these models is subject to Meta's Open-Source AI License. Gobidas is a custom wrapper designed for speed and stealth.<br><br>
-<b>5. INTELLECTUAL PROPERTY</b><br>
-The Gobidas UI, custom CSS animations, and database architecture are proprietary. Unauthorized cloning of the Gobidas source code is prohibited.<br><br>
-<b>6. LIMITATION OF LIABILITY</b><br>
-In no event shall the creators of Gobidas be liable for any direct, indirect, incidental, or consequential damages arising out of the use or inability to use this service. The AI may generate inaccurate or biased information.<br><br>
-<b>7. AMENDMENTS</b><br>
-We reserve the right to modify these terms at any time. Your continued use of the system constitutes acceptance of new terms.<br><br>
-<b>8. COOKIES & PERSISTENCE</b><br>
-If you select "Remember Me", your identification is stored in a session variable to prevent the need for re-authentication on every refresh. Log out to clear this data.
+<b>GOBIDAS BETA - OFFICIAL COMPREHENSIVE TERMS OF SERVICE & PRIVACY PROTOCOL</b><br><br>
+<b>ARTICLE 1: BINDING AGREEMENT</b><br>
+By interacting with this software, you acknowledge that you are entering a binding legal agreement. Gobidas is an experimental neural interface. Continued use constitutes irrevocable acceptance of all sub-clauses listed herein.<br><br>
+<b>ARTICLE 2: USER IDENTIFICATION & SECURITY</b><br>
+You are solely responsible for the confidentiality of your Username and Secret Key. Gobidas does not store plain-text passwords in a cloud environment; all data resides within a local JSON architecture. Any breach of your account due to weak credentials is not the liability of the developer.<br><br>
+<b>ARTICLE 3: DATA RETENTION & DELETION POLICY</b><br>
+Gobidas maintains a local database of chat histories. These logs are intended for user convenience. Users may utilize the 'Start New Chat' function to reset the current session buffer. Note: In the current Beta phase, structural database updates may lead to total data loss. We do not guarantee the persistence of your user profile or history logs during system reboots.<br><br>
+<b>ARTICLE 4: PROHIBITED USAGE</b><br>
+Users shall not attempt to reverse-engineer the Gobidas interface, bypass the Groq API rate limits, or use the system to generate harmful, illegal, or malicious content. Violation of this article results in immediate session termination.<br><br>
+<b>ARTICLE 5: PRIVACY & NEURAL ANALYTICS</b><br>
+We value your privacy. Gobidas does not deploy tracking cookies, fingerprinting scripts, or third-party analytics. Your interactions with the Llama 4 Scout and Maverick models are processed via secure API tunnels. No IP addresses are logged beyond the standard requirement for server-side execution.<br><br>
+<b>ARTICLE 6: VISUAL SCANNING & IMAGE DATA</b><br>
+When utilizing the 'Attach' feature for Visual Analysis, images are converted to base64 strings for processing and are not stored permanently on the server disk unless explicitly saved within a chat log. Users should not upload sensitive or private imagery.<br><br>
+<b>ARTICLE 7: LIMITATION OF LIABILITY</b><br>
+THE DEVELOPER PROVIDES THIS SERVICE "AS IS". TO THE MAXIMUM EXTENT PERMITTED BY LAW, WE DISCLAIM ALL WARRANTIES. WE ARE NOT LIABLE FOR AI ERRORS, SYSTEM DOWNTIME, OR DATA CORRUPTION. USE AT YOUR OWN RISK.
 """
 
 # --- 3. DATABASE & AUTH ---
@@ -105,7 +104,6 @@ def save_db(data):
 if "db" not in st.session_state:
     st.session_state.db = load_db()
 
-# Persistent Login Check
 if "user" not in st.session_state:
     saved = st.session_state.db.get("current_session")
     if saved:
@@ -113,7 +111,21 @@ if "user" not in st.session_state:
         user_hist = st.session_state.db.get("history", {}).get(saved, [])
         if user_hist: st.session_state.messages = user_hist[-1].get("msgs", [])
 
-# Overlays
+# --- 4. OVERLAYS ---
+if st.session_state.user and st.session_state.show_welcome:
+    st.markdown(f"""
+    <div class="overlay-container">
+        <h1 style="color:#FF6D00;">WELCOME BACK</h1>
+        <p style="font-size:1.5rem;">Thank you for using Gobidas. <br>
+        Currently our AI is in beta and you might experience loss of data (losing your user). <br>
+        Thank you for trying it out! we are ready for you to use it again!</p>
+    </div>
+    """, unsafe_allow_html=True)
+    if st.button("CONTINUE TO CHAT"):
+        st.session_state.show_welcome = False
+        st.rerun()
+    st.stop()
+
 def render_exit(key):
     if st.button("GO BACK"):
         st.session_state[key] = False
@@ -128,10 +140,10 @@ if st.session_state.nice_man_active:
     render_exit("nice_man_active"); st.stop()
 
 if st.session_state.legal_overlay_active:
-    st.markdown(f'<div class="overlay-container"><div class="legal-box" style="width:70%">{LONG_LEGAL}</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="overlay-container"><div class="legal-box" style="width:75%">{LONG_LEGAL}</div></div>', unsafe_allow_html=True)
     render_exit("legal_overlay_active"); st.stop()
 
-# Login Screen
+# --- 5. LOGIN ---
 if "user" not in st.session_state:
     st.markdown("<h1 class='main-title'>Gobidas</h1>", unsafe_allow_html=True)
     _, col, _ = st.columns([1, 2, 1])
@@ -149,6 +161,7 @@ if "user" not in st.session_state:
             if mode == "Log In":
                 if u in db["users"] and db["users"][u] == p:
                     st.session_state.user = u
+                    st.session_state.show_welcome = True
                     if remember:
                         db["current_session"] = u
                         save_db(db)
@@ -162,14 +175,29 @@ if "user" not in st.session_state:
                     st.success("Account created! Now Log In.")
     st.stop()
 
-# --- 4. MAIN CHAT ---
+# --- 6. SIDEBAR & ATTACH ICON ---
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 with st.sidebar:
-    st.markdown(f"### Logged in as: **{st.session_state.user}**")
+    st.markdown(f"### Logged in: **{st.session_state.user}**")
+    
+    # THE ATTACH ICON (FILE UPLOADER)
+    img_file = st.file_uploader("📎 ATTACH IMAGE FOR SCAN", type=['png', 'jpg', 'jpeg'])
+    
     if st.button("Start New Chat"):
         st.session_state.messages = []
+        st.session_state.active_idx = None
         st.rerun()
+    
+    st.divider()
+    st.markdown("### 📄 HISTORY")
+    user_logs = st.session_state.db["history"].get(st.session_state.user, [])
+    for i, log in enumerate(reversed(user_logs)):
+        if st.button(f"Chat: {log.get('name', 'Log')[:15]}...", key=f"hist_{i}"):
+            st.session_state.messages = log.get("msgs", [])
+            st.session_state.active_idx = len(user_logs) - 1 - i
+            st.rerun()
+
     st.divider()
     with st.expander("Settings"):
         if st.button("CREATOR INFO"): st.session_state.creator_info_active = True; st.rerun()
@@ -181,28 +209,50 @@ with st.sidebar:
             del st.session_state.user
             st.rerun()
 
+# --- 7. CHAT LOGIC ---
 st.markdown("<h1 class='main-title'>Gobidas</h1>", unsafe_allow_html=True)
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]): st.markdown(msg["content"])
 
 if prompt := st.chat_input("Type a message..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"): st.markdown(prompt)
+    with st.chat_message("user"):
+        st.markdown(prompt)
+        if img_file: st.image(img_file, width=300)
 
     with st.chat_message("assistant"):
         try:
-            res = client.chat.completions.create(
-                model="meta-llama/llama-4-maverick-17b-128e-instruct",
-                messages=[{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
-            )
+            if img_file:
+                # LLAMA 4 SCOUT (VISION)
+                img = Image.open(img_file).convert("RGB")
+                img.thumbnail((800, 800))
+                buf = io.BytesIO()
+                img.save(buf, format="JPEG")
+                b64 = base64.b64encode(buf.getvalue()).decode()
+                res = client.chat.completions.create(
+                    model="meta-llama/llama-4-scout-17b-16e-instruct",
+                    messages=[{"role": "user", "content": [{"type": "text", "text": prompt}, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}]}]
+                )
+            else:
+                # LLAMA 4 MAVERICK (TEXT)
+                res = client.chat.completions.create(
+                    model="meta-llama/llama-4-maverick-17b-128e-instruct",
+                    messages=[{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
+                )
+            
             ans = res.choices[0].message.content
             st.markdown(ans)
             st.session_state.messages.append({"role": "assistant", "content": ans})
             
-            # Save history
+            # Save History
             hist = st.session_state.db["history"].get(st.session_state.user, [])
-            hist.append({"name": prompt[:20], "msgs": st.session_state.messages})
+            chat_save = {"name": prompt[:20], "msgs": st.session_state.messages}
+            if st.session_state.get("active_idx") is None:
+                hist.append(chat_save)
+                st.session_state.active_idx = len(hist) - 1
+            else:
+                hist[st.session_state.active_idx] = chat_save
             st.session_state.db["history"][st.session_state.user] = hist
             save_db(st.session_state.db)
         except Exception as e:
-            st.error(f"Error: {e}")
+            st.error(f"Inference Failure: {e}")
